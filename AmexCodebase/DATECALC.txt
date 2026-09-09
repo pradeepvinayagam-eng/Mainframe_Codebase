@@ -1,0 +1,35 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. DATECALC.
+      *****************************************************************
+      * DATE CALCULATION UTILITY - DAYS BETWEEN DATES                *
+      *****************************************************************
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-START-INTEGER            PIC 9(7) COMP.
+       01  WS-END-INTEGER              PIC 9(7) COMP.
+
+       LINKAGE SECTION.
+       01  LS-START-DATE               PIC 9(8).
+       01  LS-END-DATE                 PIC 9(8).
+       01  LS-DAYS-BETWEEN             PIC 9(5) COMP.
+       01  LS-CALCULATION-STATUS       PIC X.
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-START-DATE
+                                LS-END-DATE
+                                LS-DAYS-BETWEEN
+                                LS-CALCULATION-STATUS
+                                LS-RETURN-CODE.
+       0000-MAIN.
+           MOVE 'Y' TO LS-CALCULATION-STATUS
+           MOVE ZERO TO LS-RETURN-CODE
+
+           COMPUTE WS-START-INTEGER =
+                                 FUNCTION INTEGER-OF-DATE(LS-START-DATE)
+
+           COMPUTE WS-END-INTEGER =
+                                 FUNCTION INTEGER-OF-DATE(LS-END-DATE)
+
+           COMPUTE LS-DAYS-BETWEEN = WS-END-INTEGER - WS-START-INTEGER
+
+           GOBACK.
