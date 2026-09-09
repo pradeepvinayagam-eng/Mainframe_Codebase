@@ -1,0 +1,298 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. DELINQ.
+       AUTHOR. ENTERPRISE-BANKING-SYSTEMS.
+      *****************************************************************
+      * DELINQUENCY MANAGEMENT ENGINE - COMPLEX SUBPROGRAM           *
+      *                                                              *
+      * MANAGES LOAN DELINQUENCY PROCESSING:                        *
+      * - DETERMINES DELINQUENCY STAGE (30/60/90/120+ DAYS)         *
+      * - CALCULATES LATE PAYMENT HISTORY                           *
+      * - TRIGGERS COLLECTION ACTIONS                               *
+      * - MANAGES WORKOUT/MODIFICATION OPTIONS                      *
+      * - TRACKS FORECLOSURE TIMELINE                               *
+      * - UPDATES CREDIT BUREAU REPORTING                           *
+      * - CALCULATES CURE AMOUNTS                                   *
+      * - MANAGES BANKRUPTCY STATUS                                 *
+      *                                                              *
+      * REGULATORY COMPLIANCE:                                      *
+      * - FAIR DEBT COLLECTION PRACTICES ACT (FDCPA)                *
+      * - FAIR CREDIT REPORTING ACT (FCRA)                          *
+      * - SERVICEMEMBERS CIVIL RELIEF ACT (SCRA)                    *
+      * - STATE FORECLOSURE LAWS                                    *
+      *****************************************************************
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-DELINQ-THRESHOLDS.
+           05  WS-THRESHOLD-30-DAYS    PIC 9(3) COMP VALUE 30.
+           05  WS-THRESHOLD-60-DAYS    PIC 9(3) COMP VALUE 60.
+           05  WS-THRESHOLD-90-DAYS    PIC 9(3) COMP VALUE 90.
+           05  WS-THRESHOLD-120-DAYS   PIC 9(3) COMP VALUE 120.
+           05  WS-THRESHOLD-FORECLOSURE PIC 9(3) COMP VALUE 150.
+
+       01  WS-COLLECTION-ACTIONS.
+           05  WS-ACTION-LETTER-1      PIC X(3) VALUE 'LT1'.
+           05  WS-ACTION-LETTER-2      PIC X(3) VALUE 'LT2'.
+           05  WS-ACTION-LETTER-3      PIC X(3) VALUE 'LT3'.
+           05  WS-ACTION-PHONE-CALL    PIC X(3) VALUE 'PH1'.
+           05  WS-ACTION-ATTORNEY      PIC X(3) VALUE 'ATT'.
+           05  WS-ACTION-FORECLOSURE   PIC X(3) VALUE 'FOR'.
+
+       01  WS-CURE-CALCULATION.
+           05  WS-PAYMENTS-MISSED      PIC 9(3) COMP.
+           05  WS-SCHEDULED-PAYMENT    PIC S9(9)V99 COMP-3.
+           05  WS-CURE-AMOUNT          PIC S9(11)V99 COMP-3.
+           05  WS-LATE-FEES-DUE        PIC S9(9)V99 COMP-3.
+           05  WS-LEGAL-FEES           PIC S9(9)V99 COMP-3.
+           05  WS-TOTAL-CURE           PIC S9(11)V99 COMP-3.
+
+       01  WS-CREDIT-REPORTING.
+           05  WS-REPORT-30-DAYS       PIC X VALUE 'N'.
+               88  REPORT-30-DAY       VALUE 'Y'.
+           05  WS-REPORT-60-DAYS       PIC X VALUE 'N'.
+               88  REPORT-60-DAY       VALUE 'Y'.
+           05  WS-REPORT-90-DAYS       PIC X VALUE 'N'.
+               88  REPORT-90-DAY       VALUE 'Y'.
+           05  WS-REPORT-120-DAYS      PIC X VALUE 'N'.
+               88  REPORT-120-DAY      VALUE 'Y'.
+
+       01  WS-FORECLOSURE-TIMELINE.
+           05  WS-NOTICE-DATE          PIC 9(8).
+           05  WS-SALE-DATE            PIC 9(8).
+           05  WS-REDEMPTION-DATE      PIC 9(8).
+           05  WS-DAYS-TO-SALE         PIC 9(5) COMP.
+
+       01  WS-SPECIAL-CIRCUMSTANCES.
+           05  WS-SCRA-PROTECTED       PIC X VALUE 'N'.
+               88  SCRA-ACTIVE         VALUE 'Y'.
+           05  WS-BANKRUPTCY-FILED     PIC X VALUE 'N'.
+               88  IN-BANKRUPTCY       VALUE 'Y'.
+           05  WS-WORKOUT-ACTIVE       PIC X VALUE 'N'.
+               88  WORKOUT-PLAN        VALUE 'Y'.
+           05  WS-FORBEARANCE-ACTIVE   PIC X VALUE 'N'.
+               88  IN-FORBEARANCE      VALUE 'Y'.
+
+       01  WS-WORK-FIELDS.
+           05  WS-CURRENT-STAGE        PIC 9(2) COMP.
+           05  WS-PREVIOUS-STAGE       PIC 9(2) COMP.
+           05  WS-STAGE-CHANGED        PIC X VALUE 'N'.
+               88  STAGE-ESCALATED     VALUE 'Y'.
+           05  WS-DAYS-REMAINDER       PIC 9(3) COMP.
+
+       LINKAGE SECTION.
+       01  LS-LOAN-NUMBER              PIC X(20).
+       01  LS-DAYS-PAST-DUE            PIC 9(5) COMP.
+       01  LS-PRINCIPAL-BALANCE        PIC S9(13)V99 COMP-3.
+       01  LS-DELINQ-RECORD.
+           COPY DELNQREC.
+       01  LS-DELINQ-STAGE             PIC 9(2) COMP.
+       01  LS-CALCULATION-STATUS       PIC X.
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-LOAN-NUMBER
+                                LS-DAYS-PAST-DUE
+                                LS-PRINCIPAL-BALANCE
+                                LS-DELINQ-RECORD
+                                LS-DELINQ-STAGE
+                                LS-CALCULATION-STATUS
+                                LS-RETURN-CODE.
+
+       0000-MAIN-DELINQ-PROCESSING.
+      *****************************************************************
+      * MAIN DELINQUENCY PROCESSING LOGIC                           *
+      *****************************************************************
+           PERFORM 1000-INITIALIZE-PROCESSING
+           PERFORM 2000-VALIDATE-INPUT-DATA
+
+           IF LS-CALCULATION-STATUS = 'Y'
+               PERFORM 3000-DETERMINE-DELINQ-STAGE
+               PERFORM 4000-CHK-SPECIAL-CIRCUMSTANCE
+               PERFORM 5000-CALCULATE-CURE-AMOUNT
+               PERFORM 6000-DETERMINE-COLLECTION-ACT
+               PERFORM 7000-UPDATE-CREDIT-REPORTING
+               PERFORM 8000-CHECK-FORECLOSURE-ELIGIB
+               PERFORM 9000-BUILD-DELINQUENCY-RECORD
+           END-IF
+
+           GOBACK.
+
+       1000-INITIALIZE-PROCESSING.
+      *****************************************************************
+      * INITIALIZE PROCESSING VARIABLES                              *
+      *****************************************************************
+           MOVE 'Y' TO LS-CALCULATION-STATUS
+           MOVE ZERO TO LS-RETURN-CODE
+                        LS-DELINQ-STAGE
+                        WS-CURRENT-STAGE
+                        WS-CURE-AMOUNT
+
+           INITIALIZE WS-CREDIT-REPORTING
+                      WS-SPECIAL-CIRCUMSTANCES.
+
+       2000-VALIDATE-INPUT-DATA.
+      *****************************************************************
+      * VALIDATE INPUT PARAMETERS                                    *
+      *****************************************************************
+           IF LS-LOAN-NUMBER = SPACES OR LOW-VALUES
+               MOVE 'N' TO LS-CALCULATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+               GO TO 2000-EXIT
+           END-IF
+
+           IF LS-DAYS-PAST-DUE < ZERO
+               MOVE 'N' TO LS-CALCULATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+               GO TO 2000-EXIT
+           END-IF
+
+           IF LS-PRINCIPAL-BALANCE <= ZERO
+               MOVE 'N' TO LS-CALCULATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+           END-IF.
+
+       2000-EXIT.
+           EXIT.
+
+       3000-DETERMINE-DELINQ-STAGE.
+      *****************************************************************
+      * DETERMINE CURRENT DELINQUENCY STAGE                          *
+      *****************************************************************
+           EVALUATE TRUE
+               WHEN LS-DAYS-PAST-DUE < WS-THRESHOLD-30-DAYS
+                   MOVE 0 TO WS-CURRENT-STAGE
+               WHEN LS-DAYS-PAST-DUE >= WS-THRESHOLD-30-DAYS AND
+                    LS-DAYS-PAST-DUE < WS-THRESHOLD-60-DAYS
+                   MOVE 1 TO WS-CURRENT-STAGE
+                   MOVE 'Y' TO WS-REPORT-30-DAYS
+               WHEN LS-DAYS-PAST-DUE >= WS-THRESHOLD-60-DAYS AND
+                    LS-DAYS-PAST-DUE < WS-THRESHOLD-90-DAYS
+                   MOVE 2 TO WS-CURRENT-STAGE
+                   MOVE 'Y' TO WS-REPORT-60-DAYS
+               WHEN LS-DAYS-PAST-DUE >= WS-THRESHOLD-90-DAYS AND
+                    LS-DAYS-PAST-DUE < WS-THRESHOLD-120-DAYS
+                   MOVE 3 TO WS-CURRENT-STAGE
+                   MOVE 'Y' TO WS-REPORT-90-DAYS
+               WHEN LS-DAYS-PAST-DUE >= WS-THRESHOLD-120-DAYS AND
+                    LS-DAYS-PAST-DUE < WS-THRESHOLD-FORECLOSURE
+                   MOVE 4 TO WS-CURRENT-STAGE
+                   MOVE 'Y' TO WS-REPORT-120-DAYS
+               WHEN LS-DAYS-PAST-DUE >= WS-THRESHOLD-FORECLOSURE
+                   MOVE 5 TO WS-CURRENT-STAGE
+                   MOVE 'Y' TO WS-REPORT-120-DAYS
+           END-EVALUATE
+
+           MOVE WS-CURRENT-STAGE TO LS-DELINQ-STAGE.
+
+       4000-CHK-SPECIAL-CIRCUMSTANCE.
+      *****************************************************************
+      * CHECK FOR SPECIAL PROTECTION CIRCUMSTANCES                   *
+      *****************************************************************
+           CALL 'SCRACHK' USING LS-LOAN-NUMBER
+                                WS-SCRA-PROTECTED
+                                LS-CALCULATION-STATUS
+                                LS-RETURN-CODE
+
+           IF SCRA-ACTIVE
+               MOVE 'SCRA PROTECTED - COLLECTION LIMITED'
+                   TO DT-SPECIAL-STATUS
+           END-IF.
+
+       5000-CALCULATE-CURE-AMOUNT.
+      *****************************************************************
+      * CALCULATE AMOUNT REQUIRED TO CURE DELINQUENCY                *
+      *****************************************************************
+           DIVIDE LS-DAYS-PAST-DUE BY 30
+               GIVING WS-PAYMENTS-MISSED
+               REMAINDER WS-DAYS-REMAINDER
+
+           CALL 'CURECALC' USING LS-LOAN-NUMBER
+                                 WS-PAYMENTS-MISSED
+                                 WS-CURE-AMOUNT
+                                 WS-LATE-FEES-DUE
+                                 WS-LEGAL-FEES
+                                 LS-CALCULATION-STATUS
+                                 LS-RETURN-CODE
+
+           COMPUTE WS-TOTAL-CURE =
+               WS-CURE-AMOUNT +
+               WS-LATE-FEES-DUE +
+               WS-LEGAL-FEES.
+
+       6000-DETERMINE-COLLECTION-ACT.
+      *****************************************************************
+      * DETERMINE NEXT COLLECTION ACTION                             *
+      *****************************************************************
+           EVALUATE WS-CURRENT-STAGE
+               WHEN 1
+                   MOVE WS-ACTION-LETTER-1 TO DT-NEXT-ACTION
+               WHEN 2
+                   MOVE WS-ACTION-LETTER-2 TO DT-NEXT-ACTION
+               WHEN 3
+                   IF NOT SCRA-ACTIVE AND NOT IN-BANKRUPTCY
+                       MOVE WS-ACTION-PHONE-CALL TO DT-NEXT-ACTION
+                   ELSE
+                       MOVE WS-ACTION-LETTER-3 TO DT-NEXT-ACTION
+                   END-IF
+               WHEN 4
+                   IF NOT SCRA-ACTIVE AND NOT IN-BANKRUPTCY
+                       MOVE WS-ACTION-ATTORNEY TO DT-NEXT-ACTION
+                   END-IF
+               WHEN 5
+                   IF NOT SCRA-ACTIVE AND NOT IN-BANKRUPTCY
+                       MOVE WS-ACTION-FORECLOSURE TO DT-NEXT-ACTION
+                   END-IF
+           END-EVALUATE.
+
+       7000-UPDATE-CREDIT-REPORTING.
+      *****************************************************************
+      * UPDATE CREDIT BUREAU REPORTING FLAGS                         *
+      *****************************************************************
+           IF REPORT-30-DAY
+               MOVE 'Y' TO DT-CREDIT-REPORTED-30
+           END-IF
+
+           IF REPORT-60-DAY
+               MOVE 'Y' TO DT-CREDIT-REPORTED-60
+           END-IF
+
+           IF REPORT-90-DAY
+               MOVE 'Y' TO DT-CREDIT-REPORTED-90
+           END-IF
+
+           IF REPORT-120-DAY
+               MOVE 'Y' TO DT-CREDIT-REPORTED-120
+           END-IF.
+
+       8000-CHECK-FORECLOSURE-ELIGIB.
+      *****************************************************************
+      * CHECK IF LOAN IS ELIGIBLE FOR FORECLOSURE                    *
+      *****************************************************************
+           IF WS-CURRENT-STAGE = 5 AND
+              NOT SCRA-ACTIVE AND
+              NOT IN-BANKRUPTCY AND
+              NOT WORKOUT-PLAN
+               MOVE 'Y' TO DT-FORECLOSURE-ELIGIBLE
+               PERFORM 8100-CALC-FORECLOSURE-TIMELINE
+           ELSE
+               MOVE 'N' TO DT-FORECLOSURE-ELIGIBLE
+           END-IF.
+
+       8100-CALC-FORECLOSURE-TIMELINE.
+      *****************************************************************
+      * CALCULATE FORECLOSURE TIMELINE                               *
+      *****************************************************************
+           CALL 'FORECALC' USING LS-LOAN-NUMBER
+                                 WS-NOTICE-DATE
+                                 WS-SALE-DATE
+                                 WS-DAYS-TO-SALE
+                                 LS-CALCULATION-STATUS
+                                 LS-RETURN-CODE.
+
+       9000-BUILD-DELINQUENCY-RECORD.
+      *****************************************************************
+      * BUILD COMPLETE DELINQUENCY RECORD                            *
+      *****************************************************************
+           MOVE LS-LOAN-NUMBER TO DT-LOAN-NUMBER
+           MOVE LS-DAYS-PAST-DUE TO DT-DAYS-PAST-DUE
+           MOVE WS-CURRENT-STAGE TO DT-DELINQ-STAGE
+           MOVE WS-TOTAL-CURE TO DT-CURE-AMOUNT
+           MOVE WS-PAYMENTS-MISSED TO DT-PAYMENTS-MISSED.
