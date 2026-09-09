@@ -1,0 +1,69 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. LATEFEE.
+       AUTHOR. ENTERPRISE-BANKING-SYSTEMS.
+      *****************************************************************
+      * LATE FEE CALCULATION SUBPROGRAM                              *
+      * CALCULATES LATE FEES BASED ON LOAN TYPE AND DAYS LATE       *
+      *****************************************************************
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-FEE-CONSTANTS.
+           05  WS-MORTGAGE-FEE-RATE    PIC 9V9(4) COMP-3 VALUE 0.05.
+           05  WS-AUTO-FEE-RATE        PIC 9V9(4) COMP-3 VALUE 0.04.
+           05  WS-PERSONAL-FEE-RATE    PIC 9V9(4) COMP-3 VALUE 0.06.
+           05  WS-MIN-LATE-FEE         PIC 9(5)V99 COMP-3 VALUE 15.00.
+           05  WS-MAX-LATE-FEE         PIC 9(7)V99 COMP-3 VALUE 500.00.
+
+       01  WS-CALCULATED-FEE           PIC S9(7)V99 COMP-3.
+       01  WS-PERCENTAGE-FEE           PIC S9(7)V99 COMP-3.
+
+       LINKAGE SECTION.
+       01  LS-LOAN-TYPE                PIC X(4).
+       01  LS-SCHEDULED-PAYMENT        PIC S9(9)V99 COMP-3.
+       01  LS-DAYS-LATE                PIC 9(5) COMP.
+       01  LS-LATE-FEE-AMOUNT          PIC S9(7)V99 COMP-3.
+       01  LS-CALCULATION-STATUS       PIC X.
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-LOAN-TYPE
+                                LS-SCHEDULED-PAYMENT
+                                LS-DAYS-LATE
+                                LS-LATE-FEE-AMOUNT
+                                LS-CALCULATION-STATUS
+                                LS-RETURN-CODE.
+       0000-MAIN-CALCULATION.
+           MOVE 'Y' TO LS-CALCULATION-STATUS
+           MOVE ZERO TO LS-RETURN-CODE
+           MOVE ZERO TO LS-LATE-FEE-AMOUNT
+
+           PERFORM 1000-CALCULATE-PERCENTAGE-FEE
+           PERFORM 2000-APPLY-MIN-AND-MAX
+
+           MOVE WS-CALCULATED-FEE TO LS-LATE-FEE-AMOUNT
+
+           GOBACK.
+
+       1000-CALCULATE-PERCENTAGE-FEE.
+           EVALUATE LS-LOAN-TYPE
+               WHEN 'MORT'
+                   COMPUTE WS-PERCENTAGE-FEE ROUNDED =
+                       LS-SCHEDULED-PAYMENT * WS-MORTGAGE-FEE-RATE
+               WHEN 'AUTO'
+                   COMPUTE WS-PERCENTAGE-FEE ROUNDED =
+                       LS-SCHEDULED-PAYMENT * WS-AUTO-FEE-RATE
+               WHEN 'PERS'
+                   COMPUTE WS-PERCENTAGE-FEE ROUNDED =
+                       LS-SCHEDULED-PAYMENT * WS-PERSONAL-FEE-RATE
+               WHEN OTHER
+                   COMPUTE WS-PERCENTAGE-FEE ROUNDED =
+                       LS-SCHEDULED-PAYMENT * WS-MORTGAGE-FEE-RATE
+           END-EVALUATE.
+
+       2000-APPLY-MIN-AND-MAX.
+           IF WS-PERCENTAGE-FEE < WS-MIN-LATE-FEE
+               MOVE WS-MIN-LATE-FEE TO WS-CALCULATED-FEE
+           ELSE IF WS-PERCENTAGE-FEE > WS-MAX-LATE-FEE
+               MOVE WS-MAX-LATE-FEE TO WS-CALCULATED-FEE
+           ELSE
+               MOVE WS-PERCENTAGE-FEE TO WS-CALCULATED-FEE
+           END-IF.
