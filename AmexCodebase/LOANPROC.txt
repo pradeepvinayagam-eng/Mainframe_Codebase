@@ -1,0 +1,1387 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. LOANPROC.
+       AUTHOR. ENTERPRISE-BANKING-SYSTEMS.
+      *****************************************************************
+      * COMPREHENSIVE LOAN PROCESSING SYSTEM - ULTRA COMPLEX         *
+      *                                                              *
+      * MASTER LOAN PROCESSING BATCH - HANDLES ALL LOAN OPERATIONS  *
+      *                                                              *
+      * FUNCTIONALITY:                                               *
+      * - PROCESSES MULTIPLE LOAN TYPES (MORTGAGE, AUTO, PERSONAL)  *
+      * - PAYMENT PROCESSING AND ALLOCATION                         *
+      * - INTEREST ACCRUAL CALCULATIONS                             *
+      * - LATE FEE ASSESSMENT                                       *
+      * - DELINQUENCY MANAGEMENT                                    *
+      * - ESCROW ACCOUNT PROCESSING                                 *
+      * - INSURANCE TRACKING AND LAPSE DETECTION                    *
+      * - PROPERTY TAX CALCULATION                                  *
+      * - PAYMENT REVERSALS AND ADJUSTMENTS                         *
+      * - CREDIT REPORTING                                          *
+      * - REGULATORY COMPLIANCE CHECKS                              *
+      * - AMORTIZATION SCHEDULE GENERATION                          *
+      * - PREPAYMENT PENALTY CALCULATION                            *
+      * - BALLOON PAYMENT TRACKING                                  *
+      * - VARIABLE RATE ADJUSTMENTS                                 *
+      * - PAYMENT DUE DATE CALCULATIONS                             *
+      * - PAYOFF QUOTE GENERATION                                   *
+      * - LOAN MODIFICATION PROCESSING                              *
+      * - FORECLOSURE TRACKING                                      *
+      * - BANKRUPTCY STATUS MONITORING                              *
+      *                                                              *
+      * CALLED SUBPROGRAMS:                                         *
+      * - LOANVAL  - Loan validation                                *
+      * - PMTALLOC - Payment allocation                             *
+      * - INTACCR  - Interest accrual                               *
+      * - LATEFEE  - Late fee calculation                           *
+      * - ESCROW   - Escrow processing                              *
+      * - CREDSCR  - Credit score update                            *
+      * - AMORTIZ  - Amortization calculation                       *
+      * - PREPAY   - Prepayment processing                          *
+      * - RATEADJ  - Rate adjustment                                *
+      * - DELINQ   - Delinquency management                         *
+      *                                                              *
+      * FILES PROCESSED:                                            *
+      * - LOAN-MASTER (15 files total)                              *
+      * - PAYMENT-INPUT                                             *
+      * - PAYMENT-HISTORY                                           *
+      * - ESCROW-MASTER                                             *
+      * - INSURANCE-MASTER                                          *
+      * - PROPERTY-TAX-MASTER                                       *
+      * - RATE-ADJUSTMENT-TABLE                                     *
+      * - DELINQUENCY-TRACKING                                      *
+      * - CREDIT-BUREAU-REPORT                                      *
+      * - TRANSACTION-LOG                                           *
+      * - EXCEPTION-REPORT                                          *
+      * - REGULATORY-REPORT                                         *
+      * - AMORTIZATION-SCHEDULE                                     *
+      * - PAYOFF-QUOTES                                             *
+      * - FORECLOSURE-TRACKING                                      *
+      *                                                              *
+      *****************************************************************
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-370.
+       OBJECT-COMPUTER. IBM-370.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT LOAN-MASTER
+               ASSIGN TO LOANMAST
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS LM-LOAN-NUMBER
+               FILE STATUS IS WS-LOAN-STATUS.
+
+           SELECT PAYMENT-INPUT
+               ASSIGN TO PMTINPUT
+               ORGANIZATION IS SEQUENTIAL
+               FILE STATUS IS WS-PMT-INPUT-STATUS.
+
+           SELECT PAYMENT-HISTORY
+               ASSIGN TO PMTHIST
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS PH-HISTORY-KEY
+               FILE STATUS IS WS-PMT-HIST-STATUS.
+
+           SELECT ESCROW-MASTER
+               ASSIGN TO ESCROW
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS EM-LOAN-NUMBER
+               FILE STATUS IS WS-ESC-STATUS.
+
+           SELECT INSURANCE-MASTER
+               ASSIGN TO INSUR
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS IM-POLICY-KEY
+               FILE STATUS IS WS-INS-STATUS.
+
+           SELECT PROPERTY-TAX-MASTER
+               ASSIGN TO PROPTAX
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS RANDOM
+               RECORD KEY IS PT-PROPERTY-ID
+               FILE STATUS IS WS-TAX-STATUS.
+
+           SELECT RATE-ADJUSTMENT-TABLE
+               ASSIGN TO RATETBL
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS RANDOM
+               RECORD KEY IS RA-INDEX-KEY
+               FILE STATUS IS WS-RATE-STATUS.
+
+           SELECT DELINQUENCY-TRACKING
+               ASSIGN TO DELINQ
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS DT-LOAN-NUMBER
+               FILE STATUS IS WS-DELINQ-STATUS.
+
+           SELECT CREDIT-BUREAU-REPORT
+               ASSIGN TO CREDIT
+               ORGANIZATION IS SEQUENTIAL
+               FILE STATUS IS WS-CREDIT-STATUS.
+
+           SELECT TRANSACTION-LOG
+               ASSIGN TO TRANLOG
+               ORGANIZATION IS SEQUENTIAL
+               FILE STATUS IS WS-LOG-STATUS.
+
+           SELECT EXCEPTION-REPORT
+               ASSIGN TO EXCRPT
+               ORGANIZATION IS SEQUENTIAL
+               FILE STATUS IS WS-EXC-STATUS.
+
+           SELECT REGULATORY-REPORT
+               ASSIGN TO REGRPT
+               ORGANIZATION IS SEQUENTIAL
+               FILE STATUS IS WS-REG-STATUS.
+
+           SELECT AMORTIZATION-SCHEDULE
+               ASSIGN TO AMORTSCH
+               ORGANIZATION IS SEQUENTIAL
+               FILE STATUS IS WS-AMORT-STATUS.
+
+           SELECT PAYOFF-QUOTES
+               ASSIGN TO PAYOFF
+               ORGANIZATION IS SEQUENTIAL
+               FILE STATUS IS WS-PAYOFF-STATUS.
+
+           SELECT FORECLOSURE-TRACKING
+               ASSIGN TO FORECLOS
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS FT-LOAN-NUMBER
+               FILE STATUS IS WS-FORE-STATUS.
+
+       DATA DIVISION.
+       FILE SECTION.
+       FD  LOAN-MASTER
+           LABEL RECORDS ARE STANDARD
+           BLOCK CONTAINS 0 RECORDS.
+       01  LOAN-MASTER-REC.
+           COPY LOANMAST.
+
+       FD  PAYMENT-INPUT
+           LABEL RECORDS ARE STANDARD
+           BLOCK CONTAINS 0 RECORDS.
+       01  PAYMENT-INPUT-REC.
+           COPY PMTINPUT.
+
+       FD  PAYMENT-HISTORY
+           LABEL RECORDS ARE STANDARD
+           BLOCK CONTAINS 0 RECORDS.
+       01  PAYMENT-HISTORY-REC.
+           COPY PMTHIST.
+
+       FD  ESCROW-MASTER
+           LABEL RECORDS ARE STANDARD
+           BLOCK CONTAINS 0 RECORDS.
+       01  ESCROW-MASTER-REC.
+           COPY ESCRWREC.
+
+       FD  INSURANCE-MASTER
+           LABEL RECORDS ARE STANDARD
+           BLOCK CONTAINS 0 RECORDS.
+       01  INSURANCE-MASTER-REC.
+           COPY INSUREC.
+
+       FD  PROPERTY-TAX-MASTER
+           LABEL RECORDS ARE STANDARD
+           BLOCK CONTAINS 0 RECORDS.
+       01  PROPERTY-TAX-REC.
+           COPY PROPTAX.
+
+       FD  RATE-ADJUSTMENT-TABLE
+           LABEL RECORDS ARE STANDARD
+           BLOCK CONTAINS 0 RECORDS.
+       01  RATE-ADJUSTMENT-REC.
+           COPY RATEADJ.
+
+       FD  DELINQUENCY-TRACKING
+           LABEL RECORDS ARE STANDARD
+           BLOCK CONTAINS 0 RECORDS.
+       01  DELINQUENCY-REC.
+           COPY DELNQREC.
+
+       FD  CREDIT-BUREAU-REPORT.
+       01  CREDIT-REPORT-LINE          PIC X(200).
+
+       FD  TRANSACTION-LOG.
+       01  TRANSACTION-LOG-REC         PIC X(250).
+
+       FD  EXCEPTION-REPORT.
+       01  EXCEPTION-LINE              PIC X(131).
+
+       FD  REGULATORY-REPORT.
+       01  REGULATORY-LINE             PIC X(199).
+
+       FD  AMORTIZATION-SCHEDULE.
+       01  AMORTIZATION-LINE           PIC X(132).
+
+       FD  PAYOFF-QUOTES.
+       01  PAYOFF-LINE                 PIC X(132).
+
+       FD  FORECLOSURE-TRACKING
+           LABEL RECORDS ARE STANDARD
+           BLOCK CONTAINS 0 RECORDS.
+       01  FORECLOSURE-REC.
+           COPY FORECLOS.
+
+       WORKING-STORAGE SECTION.
+       01  WS-PROGRAM-IDENTIFICATION.
+           05  WS-PROGRAM-NAME         PIC X(8) VALUE 'LOANPROC'.
+           05  WS-VERSION              PIC X(6) VALUE 'V03.45'.
+           05  WS-COMPILE-DATE         PIC X(10) VALUE '2024-01-15'.
+           05  WS-ENVIRONMENT          PIC X(4) VALUE 'PROD'.
+
+       01  WS-PROCESSING-DATES.
+           05  WS-CURRENT-DATE         PIC 9(8).
+           05  WS-CURRENT-YYYYMMDD REDEFINES WS-CURRENT-DATE.
+               10  WS-CURR-YYYY        PIC 9(4).
+               10  WS-CURR-MM          PIC 9(2).
+               10  WS-CURR-DD          PIC 9(2).
+           05  WS-CURRENT-TIME         PIC 9(6).
+           05  WS-CURRENT-TIMESTAMP    PIC X(26).
+           05  WS-PROCESS-DATE         PIC 9(8).
+           05  WS-BUSINESS-DATE        PIC 9(8).
+           05  WS-LAST-PROCESS-DATE    PIC 9(8).
+           05  WS-NEXT-DUE-DATE        PIC 9(8).
+           05  WS-MATURITY-DATE        PIC 9(8).
+
+       01  WS-FILE-STATUS-FIELDS.
+           05  WS-LOAN-STATUS          PIC XX.
+               88  LOAN-SUCCESS        VALUE '00' '97'.
+               88  LOAN-EOF            VALUE '10'.
+               88  LOAN-NOT-FOUND      VALUE '23'.
+           05  WS-PMT-INPUT-STATUS     PIC XX.
+               88  PMT-INPUT-SUCCESS   VALUE '00'.
+               88  PMT-INPUT-EOF       VALUE '10'.
+           05  WS-PMT-HIST-STATUS      PIC XX.
+           05  WS-ESC-STATUS           PIC XX.
+           05  WS-INS-STATUS           PIC XX.
+           05  WS-TAX-STATUS           PIC XX.
+           05  WS-RATE-STATUS          PIC XX.
+           05  WS-DELINQ-STATUS        PIC XX.
+           05  WS-CREDIT-STATUS        PIC XX.
+           05  WS-LOG-STATUS           PIC XX.
+           05  WS-EXC-STATUS           PIC XX.
+           05  WS-REG-STATUS           PIC XX.
+           05  WS-AMORT-STATUS         PIC XX.
+           05  WS-PAYOFF-STATUS        PIC XX.
+           05  WS-FORE-STATUS          PIC XX.
+
+       01  WS-PROCESSING-SWITCHES.
+           05  WS-PMT-EOF-SWITCH       PIC X VALUE 'N'.
+               88  END-OF-PAYMENTS     VALUE 'Y'.
+           05  WS-FIRST-TIME-SW        PIC X VALUE 'Y'.
+               88  FIRST-TIME          VALUE 'Y'.
+           05  WS-ERROR-OCCURRED       PIC X VALUE 'N'.
+               88  ERRORS-FOUND        VALUE 'Y'.
+           05  WS-VALIDATION-SW        PIC X.
+               88  VALIDATION-OK       VALUE 'Y'.
+               88  VALIDATION-FAILED   VALUE 'N'.
+           05  WS-CALCULATION-SW       PIC X.
+               88  CALC-SUCCESS        VALUE 'Y'.
+               88  CALC-FAILURE        VALUE 'N'.
+           05  WS-ESCROW-REQUIRED-SW   PIC X.
+               88  ESCROW-REQUIRED     VALUE 'Y'.
+           05  WS-INSURANCE-LAPSED-SW  PIC X.
+               88  INSURANCE-LAPSED    VALUE 'Y'.
+           05  WS-DELINQUENT-SW        PIC X.
+               88  LOAN-DELINQUENT     VALUE 'Y'.
+           05  WS-FORECLOSURE-SW       PIC X.
+               88  IN-FORECLOSURE      VALUE 'Y'.
+           05  WS-BANKRUPTCY-SW        PIC X.
+               88  IN-BANKRUPTCY       VALUE 'Y'.
+
+       01  WS-PROCESSING-COUNTERS.
+           05  WS-PAYMENTS-READ        PIC 9(9) COMP-3 VALUE ZERO.
+           05  WS-PAYMENTS-PROCESSED   PIC 9(9) COMP-3 VALUE ZERO.
+           05  WS-PAYMENTS-REJECTED    PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-LOANS-PROCESSED      PIC 9(9) COMP-3 VALUE ZERO.
+           05  WS-LOANS-UPDATED        PIC 9(9) COMP-3 VALUE ZERO.
+           05  WS-INTEREST-ACCRUED     PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-LATE-FEES-ASSESSED   PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-ESCROW-PROCESSED     PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-INSURANCE-CHECKED    PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-TAX-PAYMENTS-MADE    PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-DELINQ-DETECTED      PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-CREDIT-REPORTS-GEN   PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-PAYOFF-QUOTES-GEN    PIC 9(5) COMP-3 VALUE ZERO.
+           05  WS-RATE-ADJUSTMENTS     PIC 9(5) COMP-3 VALUE ZERO.
+           05  WS-FORECLOSURES-NEW     PIC 9(5) COMP-3 VALUE ZERO.
+
+       01  WS-LOAN-TYPE-COUNTERS.
+           05  WS-MORTGAGE-COUNT       PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-AUTO-COUNT           PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-PERSONAL-COUNT       PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-HELOC-COUNT          PIC 9(7) COMP-3 VALUE ZERO.
+           05  WS-COMMERCIAL-COUNT     PIC 9(7) COMP-3 VALUE ZERO.
+
+       01  WS-AMOUNT-TOTALS.
+           05  WS-TOTAL-PAYMENTS       PIC S9(15)V99 COMP-3 VALUE ZERO.
+           05  WS-TOTAL-PRINCIPAL      PIC S9(15)V99 COMP-3 VALUE ZERO.
+           05  WS-TOTAL-INTEREST       PIC S9(13)V99 COMP-3 VALUE ZERO.
+           05  WS-TOTAL-ESCROW         PIC S9(13)V99 COMP-3 VALUE ZERO.
+           05  WS-TOTAL-LATE-FEES      PIC S9(11)V99 COMP-3 VALUE ZERO.
+           05  WS-TOTAL-PREPAYMENTS    PIC S9(13)V99 COMP-3 VALUE ZERO.
+           05  WS-TOTAL-OUTSTANDING    PIC S9(15)V99 COMP-3 VALUE ZERO.
+           05  WS-TOTAL-DELINQUENT     PIC S9(13)V99 COMP-3 VALUE ZERO.
+
+       01  WS-PAYMENT-ALLOCATION.
+           05  WS-PMT-AMOUNT           PIC S9(11)V99 COMP-3.
+           05  WS-PMT-PRINCIPAL        PIC S9(11)V99 COMP-3.
+           05  WS-PMT-INTEREST         PIC S9(11)V99 COMP-3.
+           05  WS-PMT-ESCROW           PIC S9(9)V99 COMP-3.
+           05  WS-PMT-LATE-FEE         PIC S9(7)V99 COMP-3.
+           05  WS-PMT-OTHER-FEES       PIC S9(7)V99 COMP-3.
+           05  WS-PMT-OVERPAYMENT      PIC S9(9)V99 COMP-3.
+           05  WS-PMT-UNAPPLIED        PIC S9(9)V99 COMP-3.
+
+       01  WS-LOAN-BALANCES.
+           05  WS-PRINCIPAL-BALANCE    PIC S9(13)V99 COMP-3.
+           05  WS-INTEREST-BALANCE     PIC S9(11)V99 COMP-3.
+           05  WS-ESCROW-BALANCE       PIC S9(9)V99 COMP-3.
+           05  WS-FEES-BALANCE         PIC S9(9)V99 COMP-3.
+           05  WS-TOTAL-BALANCE        PIC S9(13)V99 COMP-3.
+           05  WS-PAYOFF-AMOUNT        PIC S9(13)V99 COMP-3.
+
+       01  WS-INTEREST-CALCULATIONS.
+           05  WS-DAILY-INTEREST-RATE  PIC 9V9(8) COMP-3.
+           05  WS-ACCRUED-INTEREST     PIC S9(11)V99 COMP-3.
+           05  WS-DAYS-SINCE-LAST-PMT  PIC 9(5) COMP.
+           05  WS-INTEREST-THIS-PMT    PIC S9(9)V99 COMP-3.
+           05  WS-ANNUAL-RATE          PIC 9V9(4) COMP-3.
+           05  WS-CURRENT-RATE         PIC 9V9(4) COMP-3.
+           05  WS-RATE-ADJUSTMENT-AMT  PIC S9V9(4) COMP-3.
+
+       01  WS-DELINQUENCY-TRACKING.
+           05  WS-DAYS-PAST-DUE        PIC 9(5) COMP.
+           05  WS-PAYMENTS-PAST-DUE    PIC 9(3) COMP.
+           05  WS-DELINQ-STAGE         PIC 9(2) COMP.
+               88  CURRENT             VALUE 0.
+               88  DELINQ-30-DAYS      VALUE 1.
+               88  DELINQ-60-DAYS      VALUE 2.
+               88  DELINQ-90-DAYS      VALUE 3.
+               88  DELINQ-120-DAYS     VALUE 4.
+               88  FORECLOSURE-STAGE   VALUE 5.
+           05  WS-LAST-DELINQ-LETTER   PIC 9(8).
+           05  WS-NEXT-DELINQ-ACTION   PIC X(3).
+
+       01  WS-ESCROW-ANALYSIS.
+           05  WS-ESC-CURRENT-BALANCE  PIC S9(9)V99 COMP-3.
+           05  WS-ESC-REQUIRED-BALANCE PIC S9(9)V99 COMP-3.
+           05  WS-ESC-MONTHLY-PAYMENT  PIC S9(7)V99 COMP-3.
+           05  WS-ESC-ANNUAL-TAX       PIC S9(9)V99 COMP-3.
+           05  WS-ESC-ANNUAL-INSURANCE PIC S9(7)V99 COMP-3.
+           05  WS-ESC-SHORTAGE         PIC S9(7)V99 COMP-3.
+           05  WS-ESC-SURPLUS          PIC S9(7)V99 COMP-3.
+
+       01  WS-LATE-FEE-CALCULATION.
+           05  WS-LATE-FEE-AMOUNT      PIC S9(7)V99 COMP-3.
+           05  WS-LATE-FEE-RATE        PIC 9V9(4) COMP-3 VALUE 0,05.
+           05  WS-LATE-FEE-MINIMUM     PIC 9(5)V99 COMP-3 VALUE 25,00.
+           05  WS-LATE-FEE-MAXIMUM     PIC 9(7)V99 COMP-3 VALUE 500,00.
+           05  WS-GRACE-PERIOD-DAYS    PIC 9(3) COMP VALUE 15.
+
+       01  WS-PREPAYMENT-PROCESSING.
+           05  WS-PREPAY-AMOUNT        PIC S9(11)V99 COMP-3.
+           05  WS-PREPAY-PENALTY-RATE  PIC 9V9(4) COMP-3.
+           05  WS-PREPAY-PENALTY-AMT   PIC S9(9)V99 COMP-3.
+           05  WS-PREPAY-ALLOWED-SW    PIC X.
+               88  PREPAY-ALLOWED      VALUE 'Y'.
+               88  PREPAY-RESTRICTED   VALUE 'N'.
+
+       01  WS-AMORTIZATION-DATA.
+           05  WS-REMAINING-TERM       PIC 9(5) COMP.
+           05  WS-ORIGINAL-TERM        PIC 9(5) COMP.
+           05  WS-PAYMENTS-MADE        PIC 9(5) COMP.
+           05  WS-SCHEDULED-PAYMENT    PIC S9(9)V99 COMP-3.
+           05  WS-PRINCIPAL-THIS-PMT   PIC S9(9)V99 COMP-3.
+           05  WS-REMAINING-BALANCE    PIC S9(13)V99 COMP-3.
+
+       01  WS-REGULATORY-COMPLIANCE.
+           05  WS-TILA-DISCLOSURE-REQ  PIC X.
+               88  TILA-REQUIRED       VALUE 'Y'.
+           05  WS-RESPA-COMPLIANCE     PIC X.
+               88  RESPA-COMPLIANT     VALUE 'Y'.
+           05  WS-HMDA-REPORTING-REQ   PIC X.
+               88  HMDA-REQUIRED       VALUE 'Y'.
+           05  WS-CFPB-REPORTABLE      PIC X.
+               88  CFPB-REPORTABLE     VALUE 'Y'.
+
+       01  WS-SUBPROGRAM-PARAMETERS.
+           05  WS-RETURN-CODE          PIC S9(4) COMP.
+           05  WS-ERROR-CODE           PIC X(6).
+           05  WS-ERROR-MESSAGE        PIC X(100).
+           05  WS-WARNING-MESSAGE      PIC X(100).
+           05  WS-CALC-STATUS          PIC X.
+           05  WS-VALIDATION-STATUS    PIC X.
+
+       01  WS-REPORT-FIELDS.
+           05  WS-PAGE-NUMBER          PIC 9(5) COMP VALUE 1.
+           05  WS-LINE-COUNT           PIC 9(3) COMP VALUE 99.
+           05  WS-LINES-PER-PAGE       PIC 9(3) COMP VALUE 55.
+           05  WS-EDIT-AMOUNT          PIC $$$.$$$.$$$.$$9,99-.
+           05  WS-EDIT-RATE            PIC 9.9999.
+           05  WS-EDIT-DATE            PIC 99/99/9999.
+           05  WS-EDIT-DAYS            PIC ZZZ.ZZ9.
+
+       01  WS-WORK-AREAS.
+           05  WS-CURRENT-LOAN-NUMBER  PIC X(20).
+           05  WS-SUBSCRIPT            PIC 9(4) COMP.
+           05  WS-LOOP-COUNTER         PIC 9(5) COMP.
+           05  WS-WORK-AMOUNT          PIC S9(13)V99 COMP-3.
+           05  WS-WORK-DATE            PIC 9(8).
+           05  WS-WORK-RATE            PIC 9V9(6) COMP-3.
+
+       01  WS-LOG-DISPLAY-FIELDS.
+           05  WS-LE-AMT-1             PIC 9(13),99 VALUE ZERO.
+           05  WS-LE-AMT-2             PIC 9(13),99 VALUE ZERO.
+           05  WS-LE-AMT-3             PIC 9(13),99 VALUE ZERO.
+           05  WS-LE-AMT-4             PIC 9(13),99 VALUE ZERO.
+           05  WS-LE-DAYS              PIC 9(5)     VALUE ZERO.
+           05  WS-LE-COUNT             PIC 9(9)     VALUE ZERO.
+
+       01  WS-DATEADD-CONSTANTS.
+           05  WS-DAYS-MONTHLY         PIC 9(5) COMP VALUE 30.
+           05  WS-DAYS-BIWEEKLY        PIC 9(5) COMP VALUE 14.
+           05  WS-DAYS-WEEKLY          PIC 9(5) COMP VALUE 7.
+
+       PROCEDURE DIVISION.
+       0000-MAIN-CONTROL-LOGIC.
+      *****************************************************************
+      * MAIN CONTROL LOGIC - ORCHESTRATES ENTIRE LOAN PROCESSING     *
+      *****************************************************************
+           DISPLAY '************************************************'
+           DISPLAY '* COMPREHENSIVE LOAN PROCESSING SYSTEM STARTED *'
+           DISPLAY '************************************************'
+           DISPLAY 'PROGRAM: ' WS-PROGRAM-NAME
+           DISPLAY 'VERSION: ' WS-VERSION
+           DISPLAY 'ENVIRONMENT: ' WS-ENVIRONMENT
+
+           PERFORM 1000-INITIALIZATION
+           PERFORM 2000-PROCESS-PAYMENTS
+               UNTIL END-OF-PAYMENTS
+           PERFORM 3000-PROCESS-DAILY-ACCRUALS
+           PERFORM 4000-PROCESS-DELINQUENCIES
+           PERFORM 5000-PROCESS-ESCROW-ACCOUNTS
+           PERFORM 6000-PROCESS-INSURANCE-TRACK
+           PERFORM 7000-PROCESS-RATE-ADJUSTMENTS
+           PERFORM 8000-GENERATE-CREDIT-REPORTS
+           PERFORM 9000-END-OF-RUN-PROCESSING
+           PERFORM 9900-FINALIZATION
+           STOP RUN.
+
+       1000-INITIALIZATION.
+      *****************************************************************
+      * INITIALIZATION - SETUP FILES AND COUNTERS                    *
+      *****************************************************************
+           DISPLAY 'INITIALIZING LOAN PROCESSING SYSTEM...'
+
+           ACCEPT WS-CURRENT-DATE FROM DATE YYYYMMDD
+           ACCEPT WS-CURRENT-TIME FROM TIME
+           MOVE FUNCTION CURRENT-DATE TO WS-CURRENT-TIMESTAMP
+
+           PERFORM 1100-OPEN-FILES
+           PERFORM 1200-INITIALIZE-COUNTERS
+           PERFORM 1300-LOAD-PROCESSING-PARMS
+           PERFORM 1400-WRITE-REPORT-HEADERS
+           PERFORM 1500-READ-FIRST-PAYMENT
+
+           DISPLAY 'INITIALIZATION COMPLETED SUCCESSFULLY'.
+
+       1100-OPEN-FILES.
+      *****************************************************************
+      * OPEN ALL REQUIRED FILES (15 FILES)                           *
+      *****************************************************************
+           DISPLAY 'OPENING FILES...'
+
+           OPEN INPUT PAYMENT-INPUT
+                      RATE-ADJUSTMENT-TABLE
+                      PROPERTY-TAX-MASTER
+                I-O   LOAN-MASTER
+                      PAYMENT-HISTORY
+                      ESCROW-MASTER
+                      INSURANCE-MASTER
+                      DELINQUENCY-TRACKING
+                      FORECLOSURE-TRACKING
+                OUTPUT CREDIT-BUREAU-REPORT
+                       TRANSACTION-LOG
+                       EXCEPTION-REPORT
+                       REGULATORY-REPORT
+                       AMORTIZATION-SCHEDULE
+                       PAYOFF-QUOTES
+
+           IF WS-LOAN-STATUS NOT = '00'
+               DISPLAY '*** CRITICAL ERROR OPENING LOAN MASTER ***'
+               DISPLAY 'FILE STATUS: ' WS-LOAN-STATUS
+               MOVE 16 TO RETURN-CODE
+               STOP RUN
+           END-IF
+
+           IF WS-PMT-INPUT-STATUS NOT = '00'
+               DISPLAY '*** CRITICAL ERROR OPENING PAYMENT INPUT ***'
+               DISPLAY 'FILE STATUS: ' WS-PMT-INPUT-STATUS
+               MOVE 16 TO RETURN-CODE
+               STOP RUN
+           END-IF
+
+           DISPLAY 'ALL FILES OPENED SUCCESSFULLY'.
+
+       1200-INITIALIZE-COUNTERS.
+      *****************************************************************
+      * INITIALIZE ALL WORKING STORAGE COUNTERS AND TOTALS           *
+      *****************************************************************
+           INITIALIZE WS-PROCESSING-COUNTERS
+                      WS-LOAN-TYPE-COUNTERS
+                      WS-AMOUNT-TOTALS.
+
+       1300-LOAD-PROCESSING-PARMS.
+      *****************************************************************
+      * LOAD PROCESSING DATE AND BUSINESS PARAMETERS                 *
+      *****************************************************************
+           MOVE WS-CURRENT-DATE TO WS-PROCESS-DATE
+           MOVE WS-CURRENT-DATE TO WS-BUSINESS-DATE
+
+           DISPLAY 'PROCESSING DATE: ' WS-PROCESS-DATE.
+
+       1400-WRITE-REPORT-HEADERS.
+      *****************************************************************
+      * WRITE HEADERS FOR ALL REPORTS                                *
+      *****************************************************************
+           MOVE SPACES TO EXCEPTION-LINE
+           MOVE 'LOAN PROCESSING EXCEPTION REPORT' TO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING PAGE
+
+           MOVE SPACES TO REGULATORY-LINE
+           MOVE 'REGULATORY COMPLIANCE REPORT' TO REGULATORY-LINE
+           WRITE REGULATORY-LINE AFTER ADVANCING PAGE.
+
+       1500-READ-FIRST-PAYMENT.
+      *****************************************************************
+      * READ FIRST PAYMENT RECORD                                    *
+      *****************************************************************
+           PERFORM 2100-READ-PAYMENT.
+
+       2000-PROCESS-PAYMENTS.
+      *****************************************************************
+      * MAIN PAYMENT PROCESSING LOOP                                 *
+      *****************************************************************
+           ADD 1 TO WS-PAYMENTS-READ
+
+           PERFORM 2200-VALIDATE-PAYMENT
+
+           IF VALIDATION-OK
+               PERFORM 2300-RETRIEVE-LOAN-RECORD
+
+               IF LOAN-SUCCESS
+                   PERFORM 2400-CALC-INTEREST-ACCRUAL
+                   PERFORM 2500-CHECK-LATE-FEE-ASSESSMENT
+                   PERFORM 2600-ALLOCATE-PAYMENT
+                   PERFORM 2700-UPDATE-LOAN-BALANCES
+                   PERFORM 2800-UPDATE-PAYMENT-HISTORY
+                   PERFORM 2900-PROCESS-ESCROW-PORTION
+                   PERFORM 2950-CHECK-PREPAYMENT
+                   PERFORM 2960-UPDATE-AMORTIZATION
+                   PERFORM 2970-CHECK-PAYOFF
+                   ADD 1 TO WS-PAYMENTS-PROCESSED
+               ELSE
+                   PERFORM 2990-LOG-LOAN-NOT-FOUND
+                   ADD 1 TO WS-PAYMENTS-REJECTED
+               END-IF
+           ELSE
+               PERFORM 2995-LOG-PAYMENT-REJECTION
+               ADD 1 TO WS-PAYMENTS-REJECTED
+           END-IF
+
+           PERFORM 2100-READ-PAYMENT.
+
+       2100-READ-PAYMENT.
+      *****************************************************************
+      * READ NEXT PAYMENT RECORD                                     *
+      *****************************************************************
+           READ PAYMENT-INPUT
+               AT END
+                   MOVE 'Y' TO WS-PMT-EOF-SWITCH
+                   DISPLAY 'END OF PAYMENT INPUT FILE REACHED'
+               NOT AT END
+                   CONTINUE
+           END-READ.
+
+       2200-VALIDATE-PAYMENT.
+      *****************************************************************
+      * VALIDATE PAYMENT RECORD                                      *
+      *****************************************************************
+           MOVE 'Y' TO WS-VALIDATION-SW
+
+           IF PI-LOAN-NUMBER = SPACES OR LOW-VALUES
+               MOVE 'INVALID LOAN NUMBER' TO WS-ERROR-MESSAGE
+               MOVE 'N' TO WS-VALIDATION-SW
+           END-IF
+
+      *   * check if field is numeric - SOC7
+           DISPLAY 'PI-LOAN-NUMBER    :' PI-LOAN-NUMBER
+           DISPLAY 'PI-PAYMENT-AMOUNT :' PI-PAYMENT-AMOUNT
+      *   *
+           Compute PI-PAYMENT-AMOUNT = PI-PAYMENT-AMOUNT *1
+      *   *
+
+           IF PI-PAYMENT-AMOUNT NOT > ZERO
+               MOVE 'INVALID PAYMENT AMOUNT' TO WS-ERROR-MESSAGE
+               MOVE 'N' TO WS-VALIDATION-SW
+           END-IF
+
+           IF PI-PAYMENT-DATE NOT NUMERIC
+               MOVE 'INVALID PAYMENT DATE' TO WS-ERROR-MESSAGE
+               MOVE 'N' TO WS-VALIDATION-SW
+           END-IF
+
+           IF VALIDATION-OK
+               CALL 'LOANVAL' USING PAYMENT-INPUT-REC
+                                    WS-VALIDATION-STATUS
+                                    WS-ERROR-MESSAGE
+                                    WS-RETURN-CODE
+
+               IF WS-VALIDATION-STATUS NOT = 'Y'
+                   MOVE 'N' TO WS-VALIDATION-SW
+               END-IF
+           END-IF.
+
+       2300-RETRIEVE-LOAN-RECORD.
+      *****************************************************************
+      * RETRIEVE LOAN MASTER RECORD                                  *
+      *****************************************************************
+           MOVE PI-LOAN-NUMBER TO LM-LOAN-NUMBER
+
+           READ LOAN-MASTER
+               KEY IS LM-LOAN-NUMBER
+               INVALID KEY
+                   MOVE 'LOAN NOT FOUND' TO WS-ERROR-MESSAGE
+               NOT INVALID KEY
+                   ADD 1 TO WS-LOANS-PROCESSED
+                   PERFORM 2310-CLASSIFY-LOAN-TYPE
+           END-READ.
+
+       2310-CLASSIFY-LOAN-TYPE.
+      *****************************************************************
+      * CLASSIFY AND COUNT LOAN TYPE                                 *
+      *****************************************************************
+           EVALUATE LM-LOAN-TYPE
+               WHEN 'MORT'
+                   ADD 1 TO WS-MORTGAGE-COUNT
+               WHEN 'AUTO'
+                   ADD 1 TO WS-AUTO-COUNT
+               WHEN 'PERS'
+                   ADD 1 TO WS-PERSONAL-COUNT
+               WHEN 'HELO'
+                   ADD 1 TO WS-HELOC-COUNT
+               WHEN 'COMM'
+                   ADD 1 TO WS-COMMERCIAL-COUNT
+           END-EVALUATE.
+
+       2400-CALC-INTEREST-ACCRUAL.
+      *****************************************************************
+      * CALCULATE INTEREST ACCRUED SINCE LAST PAYMENT                *
+      *****************************************************************
+           CALL 'INTACCR' USING LM-PRINCIPAL-BALANCE
+                                LM-INTEREST-RATE
+                                LM-LAST-PAYMENT-DATE
+                                WS-PROCESS-DATE
+                                WS-ACCRUED-INTEREST
+                                WS-DAYS-SINCE-LAST-PMT
+                                WS-CALC-STATUS
+                                WS-RETURN-CODE
+
+           IF CALC-SUCCESS
+               ADD WS-ACCRUED-INTEREST TO LM-INTEREST-BALANCE
+               ADD 1 TO WS-INTEREST-ACCRUED
+               PERFORM 2410-LOG-INTEREST-ACCRUAL
+           ELSE
+               MOVE 'INTEREST ACCRUAL CALCULATION FAILED'
+                   TO WS-ERROR-MESSAGE
+               PERFORM 9100-LOG-EXCEPTION
+           END-IF.
+
+       2410-LOG-INTEREST-ACCRUAL.
+      *****************************************************************
+      * LOG INTEREST ACCRUAL TO TRANSACTION LOG                      *
+      *****************************************************************
+           MOVE SPACES TO TRANSACTION-LOG-REC
+           MOVE WS-ACCRUED-INTEREST TO WS-LE-AMT-1
+           MOVE WS-DAYS-SINCE-LAST-PMT TO WS-LE-DAYS
+           STRING 'INTEREST ACCRUED: LOAN=' LM-LOAN-NUMBER
+                  ' AMOUNT=' WS-LE-AMT-1
+                  ' DAYS=' WS-LE-DAYS
+                  DELIMITED BY SIZE
+                  INTO TRANSACTION-LOG-REC
+           END-STRING
+           WRITE TRANSACTION-LOG-REC.
+
+       2500-CHECK-LATE-FEE-ASSESSMENT.
+      *****************************************************************
+      * CHECK IF LATE FEE SHOULD BE ASSESSED                         *
+      *****************************************************************
+           CALL 'DATECALC' USING LM-DUE-DATE
+                                 PI-PAYMENT-DATE
+                                 WS-DAYS-PAST-DUE
+                                 WS-CALC-STATUS
+                                 WS-RETURN-CODE
+
+           IF WS-DAYS-PAST-DUE > WS-GRACE-PERIOD-DAYS
+               CALL 'LATEFEE' USING LM-LOAN-TYPE
+                                    LM-SCHEDULED-PAYMENT
+                                    WS-DAYS-PAST-DUE
+                                    WS-LATE-FEE-AMOUNT
+                                    WS-CALC-STATUS
+                                    WS-RETURN-CODE
+
+               IF CALC-SUCCESS
+                   ADD WS-LATE-FEE-AMOUNT TO LM-FEES-BALANCE
+                   ADD WS-LATE-FEE-AMOUNT TO WS-TOTAL-LATE-FEES
+                   ADD 1 TO WS-LATE-FEES-ASSESSED
+                   MOVE WS-LATE-FEE-AMOUNT TO WS-PMT-LATE-FEE
+                   PERFORM 2510-LOG-LATE-FEE
+               END-IF
+           ELSE
+               MOVE ZERO TO WS-PMT-LATE-FEE
+           END-IF.
+
+       2510-LOG-LATE-FEE.
+      *****************************************************************
+      * LOG LATE FEE ASSESSMENT                                      *
+      *****************************************************************
+           MOVE SPACES TO TRANSACTION-LOG-REC
+           MOVE WS-LATE-FEE-AMOUNT TO WS-LE-AMT-1
+           MOVE WS-DAYS-PAST-DUE TO WS-LE-DAYS
+           STRING 'LATE FEE ASSESSED: LOAN=' LM-LOAN-NUMBER
+                  ' AMOUNT=' WS-LE-AMT-1
+                  ' DAYS LATE=' WS-LE-DAYS
+                  DELIMITED BY SIZE
+                  INTO TRANSACTION-LOG-REC
+           END-STRING
+           WRITE TRANSACTION-LOG-REC.
+
+       2600-ALLOCATE-PAYMENT.
+      *****************************************************************
+      * ALLOCATE PAYMENT TO PRINCIPAL, INTEREST, ESCROW, FEES        *
+      *****************************************************************
+           MOVE PI-PAYMENT-AMOUNT TO WS-PMT-AMOUNT
+
+           CALL 'PMTALLOC' USING LM-LOAN-TYPE
+                                 WS-PMT-AMOUNT
+                                 LM-FEES-BALANCE
+                                 WS-PMT-LATE-FEE
+                                 LM-INTEREST-BALANCE
+                                 WS-ACCRUED-INTEREST
+                                 LM-PRINCIPAL-BALANCE
+                                 LM-ESCROW-REQUIRED
+                                 LM-ESCROW-PAYMENT
+                                 WS-PMT-PRINCIPAL
+                                 WS-PMT-INTEREST
+                                 WS-PMT-ESCROW
+                                 WS-PMT-LATE-FEE
+                                 WS-PMT-OTHER-FEES
+                                 WS-PMT-OVERPAYMENT
+                                 WS-CALC-STATUS
+                                 WS-RETURN-CODE
+
+           IF CALC-SUCCESS
+               ADD WS-PMT-AMOUNT TO WS-TOTAL-PAYMENTS
+               ADD WS-PMT-PRINCIPAL TO WS-TOTAL-PRINCIPAL
+               ADD WS-PMT-INTEREST TO WS-TOTAL-INTEREST
+               ADD WS-PMT-ESCROW TO WS-TOTAL-ESCROW
+               PERFORM 2610-LOG-PAYMENT-ALLOCATION
+           ELSE
+               MOVE 'PAYMENT ALLOCATION FAILED' TO WS-ERROR-MESSAGE
+               PERFORM 9100-LOG-EXCEPTION
+           END-IF.
+
+       2610-LOG-PAYMENT-ALLOCATION.
+      *****************************************************************
+      * LOG PAYMENT ALLOCATION DETAILS                               *
+      *****************************************************************
+           MOVE SPACES TO TRANSACTION-LOG-REC
+           MOVE WS-PMT-AMOUNT TO WS-LE-AMT-1
+           MOVE WS-PMT-PRINCIPAL TO WS-LE-AMT-2
+           MOVE WS-PMT-INTEREST TO WS-LE-AMT-3
+           MOVE WS-PMT-ESCROW TO WS-LE-AMT-4
+           STRING 'PAYMENT ALLOCATED: LOAN=' LM-LOAN-NUMBER
+                  ' TOTAL=' WS-LE-AMT-1
+                  ' PRINCIPAL=' WS-LE-AMT-2
+                  ' INTEREST=' WS-LE-AMT-3
+                  ' ESCROW=' WS-LE-AMT-4
+                  DELIMITED BY SIZE
+                  INTO TRANSACTION-LOG-REC
+           END-STRING
+           WRITE TRANSACTION-LOG-REC.
+
+       2700-UPDATE-LOAN-BALANCES.
+      *****************************************************************
+      * UPDATE LOAN MASTER BALANCES                                  *
+      *****************************************************************
+           SUBTRACT WS-PMT-PRINCIPAL FROM LM-PRINCIPAL-BALANCE
+           SUBTRACT WS-PMT-INTEREST FROM LM-INTEREST-BALANCE
+           SUBTRACT WS-PMT-LATE-FEE FROM LM-FEES-BALANCE
+           SUBTRACT WS-PMT-OTHER-FEES FROM LM-FEES-BALANCE
+
+           ADD WS-PMT-PRINCIPAL TO LM-TOTAL-PRINCIPAL-PAID
+           ADD WS-PMT-INTEREST TO LM-TOTAL-INTEREST-PAID
+
+           MOVE WS-PROCESS-DATE TO LM-LAST-PAYMENT-DATE
+           ADD 1 TO LM-PAYMENTS-MADE
+
+           PERFORM 2710-CALCULATE-NEXT-DUE-DATE
+
+           REWRITE LOAN-MASTER-REC
+               INVALID KEY
+                   MOVE 'LOAN UPDATE FAILED' TO WS-ERROR-MESSAGE
+                   PERFORM 9100-LOG-EXCEPTION
+           END-REWRITE
+
+           IF WS-LOAN-STATUS = '00'
+               ADD 1 TO WS-LOANS-UPDATED
+           END-IF.
+
+       2710-CALCULATE-NEXT-DUE-DATE.
+      *****************************************************************
+      * CALCULATE NEXT PAYMENT DUE DATE                              *
+      *****************************************************************
+           EVALUATE LM-PAYMENT-FREQUENCY
+               WHEN 'M'
+                   CALL 'DATEADD' USING LM-DUE-DATE
+                                        WS-DAYS-MONTHLY
+                                        WS-NEXT-DUE-DATE
+                                        WS-CALC-STATUS
+               WHEN 'B'
+                   CALL 'DATEADD' USING LM-DUE-DATE
+                                        WS-DAYS-BIWEEKLY
+                                        WS-NEXT-DUE-DATE
+                                        WS-CALC-STATUS
+               WHEN 'W'
+                   CALL 'DATEADD' USING LM-DUE-DATE
+                                        WS-DAYS-WEEKLY
+                                        WS-NEXT-DUE-DATE
+                                        WS-CALC-STATUS
+           END-EVALUATE
+
+           MOVE WS-NEXT-DUE-DATE TO LM-DUE-DATE.
+
+       2800-UPDATE-PAYMENT-HISTORY.
+      *****************************************************************
+      * CREATE PAYMENT HISTORY RECORD                                *
+      *****************************************************************
+           MOVE PI-LOAN-NUMBER TO PH-LOAN-NUMBER
+           MOVE WS-PROCESS-DATE TO PH-PAYMENT-DATE
+           MOVE PI-PAYMENT-AMOUNT TO PH-PAYMENT-AMOUNT
+           MOVE WS-PMT-PRINCIPAL TO PH-PRINCIPAL-PAID
+           MOVE WS-PMT-INTEREST TO PH-INTEREST-PAID
+           MOVE WS-PMT-ESCROW TO PH-ESCROW-PAID
+           MOVE WS-PMT-LATE-FEE TO PH-LATE-FEE-PAID
+           MOVE LM-PRINCIPAL-BALANCE TO PH-BALANCE-AFTER
+
+           STRING PH-LOAN-NUMBER
+                  PH-PAYMENT-DATE
+                  DELIMITED BY SIZE
+                  INTO PH-HISTORY-KEY
+           END-STRING
+
+           WRITE PAYMENT-HISTORY-REC
+               INVALID KEY
+                   MOVE 'PAYMENT HISTORY WRITE FAILED'
+                       TO WS-ERROR-MESSAGE
+                   PERFORM 9100-LOG-EXCEPTION
+           END-WRITE.
+
+       2900-PROCESS-ESCROW-PORTION.
+      *****************************************************************
+      * PROCESS ESCROW PORTION OF PAYMENT                            *
+      *****************************************************************
+           IF LM-ESCROW-REQUIRED = 'Y' AND WS-PMT-ESCROW > ZERO
+               CALL 'ESCROW' USING LM-LOAN-NUMBER
+                                   WS-PMT-ESCROW
+                                   ESCROW-MASTER-REC
+                                   WS-CALC-STATUS
+                                   WS-RETURN-CODE
+
+               IF CALC-SUCCESS
+                   ADD 1 TO WS-ESCROW-PROCESSED
+               END-IF
+           END-IF.
+
+       2950-CHECK-PREPAYMENT.
+      *****************************************************************
+      * CHECK IF PAYMENT INCLUDES PREPAYMENT                         *
+      *****************************************************************
+           IF WS-PMT-OVERPAYMENT > ZERO
+               CALL 'PREPAY' USING LM-LOAN-TYPE
+                                   LM-PREPAYMENT-ALLOWED
+                                   WS-PMT-OVERPAYMENT
+                                   LM-PRINCIPAL-BALANCE
+                                   WS-PREPAY-PENALTY-AMT
+                                   WS-CALC-STATUS
+                                   WS-RETURN-CODE
+
+               IF CALC-SUCCESS
+                   SUBTRACT WS-PREPAY-PENALTY-AMT
+                       FROM WS-PMT-OVERPAYMENT
+                   SUBTRACT WS-PMT-OVERPAYMENT
+                       FROM LM-PRINCIPAL-BALANCE
+                   ADD WS-PMT-OVERPAYMENT TO WS-TOTAL-PREPAYMENTS
+               END-IF
+           END-IF.
+
+       2960-UPDATE-AMORTIZATION.
+      *****************************************************************
+      * UPDATE AMORTIZATION SCHEDULE                                 *
+      *****************************************************************
+           CALL 'AMORTIZ' USING LM-LOAN-NUMBER
+                                LM-PRINCIPAL-BALANCE
+                                LM-INTEREST-RATE
+                                LM-REMAINING-TERM
+                                WS-SCHEDULED-PAYMENT
+                                WS-CALC-STATUS
+                                WS-RETURN-CODE.
+
+       2970-CHECK-PAYOFF.
+      *****************************************************************
+      * CHECK IF LOAN IS PAID OFF                                    *
+      *****************************************************************
+           IF LM-PRINCIPAL-BALANCE <= ZERO
+               MOVE 'C' TO LM-LOAN-STATUS
+               MOVE WS-PROCESS-DATE TO LM-PAYOFF-DATE
+               PERFORM 2975-GENERATE-PAYOFF-STATEMENT
+           END-IF.
+
+       2975-GENERATE-PAYOFF-STATEMENT.
+      *****************************************************************
+      * GENERATE PAYOFF STATEMENT                                    *
+      *****************************************************************
+           MOVE SPACES TO PAYOFF-LINE
+           STRING 'LOAN PAID OFF: ' LM-LOAN-NUMBER
+                  ' DATE: ' WS-PROCESS-DATE
+                  ' CUSTOMER: ' LM-CUSTOMER-ID
+                  DELIMITED BY SIZE
+                  INTO PAYOFF-LINE
+           END-STRING
+           WRITE PAYOFF-LINE
+           ADD 1 TO WS-PAYOFF-QUOTES-GEN.
+
+       2990-LOG-LOAN-NOT-FOUND.
+      *****************************************************************
+      * LOG WHEN LOAN RECORD NOT FOUND                               *
+      *****************************************************************
+           MOVE SPACES TO EXCEPTION-LINE
+           MOVE PI-PAYMENT-AMOUNT TO WS-LE-AMT-1
+           STRING 'LOAN NOT FOUND: ' PI-LOAN-NUMBER
+                  ' PAYMENT: ' WS-LE-AMT-1
+                  DELIMITED BY SIZE
+                  INTO EXCEPTION-LINE
+           END-STRING
+           WRITE EXCEPTION-LINE.
+
+       2995-LOG-PAYMENT-REJECTION.
+      *****************************************************************
+      * LOG REJECTED PAYMENT                                         *
+      *****************************************************************
+           MOVE SPACES TO EXCEPTION-LINE
+           STRING 'PAYMENT REJECTED: ' PI-LOAN-NUMBER
+                  ' REASON: ' WS-ERROR-MESSAGE
+                  DELIMITED BY SIZE
+                  INTO EXCEPTION-LINE
+           END-STRING
+           WRITE EXCEPTION-LINE.
+
+       3000-PROCESS-DAILY-ACCRUALS.
+      *****************************************************************
+      * PROCESS DAILY INTEREST ACCRUALS FOR ALL ACTIVE LOANS         *
+      *****************************************************************
+           DISPLAY 'PROCESSING DAILY INTEREST ACCRUALS...'
+
+           MOVE LOW-VALUES TO LM-LOAN-NUMBER
+PVTEST     DISPLAY 'LM-LOAN-NUMBER  :' LM-LOAN-NUMBER
+           START LOAN-MASTER KEY > LM-LOAN-NUMBER
+               INVALID KEY
+                   DISPLAY 'NO LOANS TO PROCESS'
+                   GO TO 3000-EXIT.
+
+           PERFORM 3100-READ-NEXT-LOAN
+
+           PERFORM UNTIL LOAN-EOF
+PVTEST     DISPLAY 'LM-LOAN-NUMBER  :' LM-LOAN-NUMBER
+PVTEST     DISPLAY 'LM-LOAN-STATUS  :' LM-LOAN-STATUS
+               IF LM-LOAN-STATUS = 'A' OR 'O'
+                   PERFORM 3200-ACCRUE-DAILY-INTEREST
+               END-IF
+               PERFORM 3100-READ-NEXT-LOAN
+           END-PERFORM.
+
+       3000-EXIT.
+           EXIT.
+
+       3100-READ-NEXT-LOAN.
+      *****************************************************************
+      * READ NEXT LOAN FOR SEQUENTIAL PROCESSING                     *
+      *****************************************************************
+           READ LOAN-MASTER NEXT RECORD
+               AT END
+                   MOVE 'Y' TO WS-PMT-EOF-SWITCH
+           END-READ.
+
+       3200-ACCRUE-DAILY-INTEREST.
+      *****************************************************************
+      * ACCRUE DAILY INTEREST FOR CURRENT LOAN                       *
+      *****************************************************************
+           CALL 'INTACCR' USING LM-PRINCIPAL-BALANCE
+                                LM-INTEREST-RATE
+                                LM-LAST-ACCRUAL-DATE
+                                WS-PROCESS-DATE
+                                WS-ACCRUED-INTEREST
+                                WS-DAYS-SINCE-LAST-PMT
+                                WS-CALC-STATUS
+                                WS-RETURN-CODE
+
+           IF CALC-SUCCESS
+               ADD WS-ACCRUED-INTEREST TO LM-INTEREST-BALANCE
+               MOVE WS-PROCESS-DATE TO LM-LAST-ACCRUAL-DATE
+               REWRITE LOAN-MASTER-REC
+           END-IF.
+
+       4000-PROCESS-DELINQUENCIES.
+      *****************************************************************
+      * IDENTIFY AND PROCESS DELINQUENT LOANS                        *
+      *****************************************************************
+           DISPLAY 'PROCESSING DELINQUENCIES...'
+
+           MOVE LOW-VALUES TO LM-LOAN-NUMBER
+           START LOAN-MASTER KEY > LM-LOAN-NUMBER
+
+           PERFORM 3100-READ-NEXT-LOAN
+
+           PERFORM UNTIL LOAN-EOF
+               IF LM-LOAN-STATUS = 'A' OR 'D'
+                   PERFORM 4100-CHECK-DELINQUENCY-STATUS
+               END-IF
+               PERFORM 3100-READ-NEXT-LOAN
+           END-PERFORM.
+
+       4100-CHECK-DELINQUENCY-STATUS.
+      *****************************************************************
+      * CHECK IF LOAN IS DELINQUENT                                  *
+      *****************************************************************
+           CALL 'DATECALC' USING LM-DUE-DATE
+                                 WS-PROCESS-DATE
+                                 WS-DAYS-PAST-DUE
+                                 WS-CALC-STATUS
+                                 WS-RETURN-CODE
+
+           IF WS-DAYS-PAST-DUE > 30
+               CALL 'DELINQ' USING LM-LOAN-NUMBER
+                                   WS-DAYS-PAST-DUE
+                                   LM-PRINCIPAL-BALANCE
+                                   DELINQUENCY-REC
+                                   WS-DELINQ-STAGE
+                                   WS-CALC-STATUS
+                                   WS-RETURN-CODE
+
+               IF CALC-SUCCESS
+                   PERFORM 4200-UPDATE-DELINQ-TRACKING
+                   ADD 1 TO WS-DELINQ-DETECTED
+
+                   IF FORECLOSURE-STAGE
+                       PERFORM 4300-INITIATE-FORECLOSURE
+                   END-IF
+               END-IF
+           END-IF.
+
+       4200-UPDATE-DELINQ-TRACKING.
+      *****************************************************************
+      * UPDATE DELINQUENCY TRACKING FILE                             *
+      *****************************************************************
+           MOVE LM-LOAN-NUMBER TO DT-LOAN-NUMBER
+           MOVE WS-DAYS-PAST-DUE TO DT-DAYS-PAST-DUE
+           MOVE WS-DELINQ-STAGE TO DT-DELINQ-STAGE
+           MOVE WS-PROCESS-DATE TO DT-LAST-UPDATE-DATE
+
+           WRITE DELINQUENCY-REC
+               INVALID KEY
+                   REWRITE DELINQUENCY-REC
+           END-WRITE.
+
+       4300-INITIATE-FORECLOSURE.
+      *****************************************************************
+      * INITIATE FORECLOSURE PROCESS                                 *
+      *****************************************************************
+           MOVE LM-LOAN-NUMBER TO FT-LOAN-NUMBER
+           MOVE WS-PROCESS-DATE TO FT-FORECLOSURE-DATE
+           MOVE 'INITIATED' TO FT-FORECLOSURE-STATUS
+
+           WRITE FORECLOSURE-REC
+               INVALID KEY
+                   MOVE 'FORECLOSURE RECORD EXISTS'
+                       TO WS-WARNING-MESSAGE
+           END-WRITE
+
+           ADD 1 TO WS-FORECLOSURES-NEW.
+
+       5000-PROCESS-ESCROW-ACCOUNTS.
+      *****************************************************************
+      * PROCESS ALL ESCROW ACCOUNTS                                  *
+      *****************************************************************
+           DISPLAY 'PROCESSING ESCROW ACCOUNTS...'
+
+           MOVE LOW-VALUES TO EM-LOAN-NUMBER
+           START ESCROW-MASTER KEY > EM-LOAN-NUMBER
+
+           PERFORM 5100-READ-NEXT-ESCROW
+
+           PERFORM UNTIL WS-ESC-STATUS = '10'
+               PERFORM 5200-ANALYZE-ESCROW-ACCOUNT
+               PERFORM 5100-READ-NEXT-ESCROW
+           END-PERFORM.
+
+       5100-READ-NEXT-ESCROW.
+      *****************************************************************
+      * READ NEXT ESCROW ACCOUNT                                     *
+      *****************************************************************
+           READ ESCROW-MASTER NEXT RECORD
+               AT END
+                   CONTINUE
+           END-READ.
+
+       5200-ANALYZE-ESCROW-ACCOUNT.
+      *****************************************************************
+      * ANALYZE ESCROW ACCOUNT BALANCE                               *
+      *****************************************************************
+           CALL 'ESCROW' USING LM-LOAN-NUMBER
+                               WS-PMT-ESCROW
+                               ESCROW-MASTER-REC
+                               WS-CALC-STATUS
+                               WS-RETURN-CODE
+
+           MOVE ZERO TO WS-ESC-SHORTAGE
+           MOVE ZERO TO WS-ESC-SURPLUS
+
+           IF EM-CURRENT-BALANCE < EM-REQUIRED-BALANCE
+               COMPUTE WS-ESC-SHORTAGE =
+                   EM-REQUIRED-BALANCE - EM-CURRENT-BALANCE
+           END-IF
+
+           IF EM-CURRENT-BALANCE > EM-REQUIRED-BALANCE
+               COMPUTE WS-ESC-SURPLUS =
+                   EM-CURRENT-BALANCE - EM-REQUIRED-BALANCE
+           END-IF
+
+           IF WS-ESC-SHORTAGE > ZERO
+               PERFORM 5300-HANDLE-ESCROW-SHORTAGE
+           END-IF
+
+           IF WS-ESC-SURPLUS > ZERO
+               PERFORM 5400-HANDLE-ESCROW-SURPLUS
+           END-IF.
+
+       5300-HANDLE-ESCROW-SHORTAGE.
+      *****************************************************************
+      * HANDLE ESCROW SHORTAGE                                       *
+      *****************************************************************
+           MOVE SPACES TO EXCEPTION-LINE
+           MOVE WS-ESC-SHORTAGE TO WS-LE-AMT-1
+           STRING 'ESCROW SHORTAGE: LOAN=' EM-LOAN-NUMBER
+                  ' AMOUNT=' WS-LE-AMT-1
+                  DELIMITED BY SIZE
+                  INTO EXCEPTION-LINE
+           END-STRING
+           WRITE EXCEPTION-LINE.
+
+       5400-HANDLE-ESCROW-SURPLUS.
+      *****************************************************************
+      * HANDLE ESCROW SURPLUS                                        *
+      *****************************************************************
+           MOVE SPACES TO EXCEPTION-LINE
+           MOVE WS-ESC-SURPLUS TO WS-LE-AMT-1
+           STRING 'ESCROW SURPLUS: LOAN=' EM-LOAN-NUMBER
+                  ' AMOUNT=' WS-LE-AMT-1
+                  DELIMITED BY SIZE
+                  INTO EXCEPTION-LINE
+           END-STRING
+           WRITE EXCEPTION-LINE.
+
+       6000-PROCESS-INSURANCE-TRACK.
+      *****************************************************************
+      * CHECK INSURANCE STATUS FOR ALL LOANS                         *
+      *****************************************************************
+           DISPLAY 'PROCESSING INSURANCE TRACKING...'.
+
+       7000-PROCESS-RATE-ADJUSTMENTS.
+      *****************************************************************
+      * PROCESS VARIABLE RATE ADJUSTMENTS                            *
+      *****************************************************************
+           DISPLAY 'PROCESSING RATE ADJUSTMENTS...'.
+
+       8000-GENERATE-CREDIT-REPORTS.
+      *****************************************************************
+      * GENERATE CREDIT BUREAU REPORTS                               *
+      *****************************************************************
+           DISPLAY 'GENERATING CREDIT REPORTS...'.
+
+       9000-END-OF-RUN-PROCESSING.
+      *****************************************************************
+      * END OF RUN PROCESSING AND SUMMARY REPORTS                    *
+      *****************************************************************
+           DISPLAY 'GENERATING END OF RUN REPORTS...'
+
+           PERFORM 9100-WRITE-PROCESSING-SUMMARY
+           PERFORM 9200-WRITE-AMOUNT-SUMMARY
+           PERFORM 9300-WRITE-LOAN-TYPE-SUMMARY
+           PERFORM 9400-RECONCILE-TOTALS.
+
+       9100-WRITE-PROCESSING-SUMMARY.
+      *****************************************************************
+      * WRITE PROCESSING STATISTICS SUMMARY                          *
+      *****************************************************************
+           MOVE SPACES TO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 2 LINES
+
+           MOVE '*** PROCESSING SUMMARY ***' TO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 1 LINE
+
+           MOVE SPACES TO EXCEPTION-LINE
+           MOVE WS-PAYMENTS-READ TO WS-LE-COUNT
+           STRING 'PAYMENTS READ:      ' WS-LE-COUNT
+                  DELIMITED BY SIZE INTO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 2 LINES
+
+           MOVE SPACES TO EXCEPTION-LINE
+           MOVE WS-PAYMENTS-PROCESSED TO WS-LE-COUNT
+           STRING 'PAYMENTS PROCESSED: ' WS-LE-COUNT
+                  DELIMITED BY SIZE INTO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 1 LINE
+
+           MOVE SPACES TO EXCEPTION-LINE
+           MOVE WS-PAYMENTS-REJECTED TO WS-LE-COUNT
+           STRING 'PAYMENTS REJECTED:  ' WS-LE-COUNT
+                  DELIMITED BY SIZE INTO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 1 LINE.
+
+       9200-WRITE-AMOUNT-SUMMARY.
+      *****************************************************************
+      * WRITE AMOUNT TOTALS SUMMARY                                  *
+      *****************************************************************
+           MOVE SPACES TO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 2 LINES
+
+           MOVE '*** AMOUNT SUMMARY ***' TO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 1 LINE
+
+           MOVE WS-TOTAL-PAYMENTS TO WS-EDIT-AMOUNT
+           MOVE SPACES TO EXCEPTION-LINE
+           STRING 'TOTAL PAYMENTS:     ' WS-EDIT-AMOUNT
+                  DELIMITED BY SIZE INTO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 2 LINES
+
+           MOVE WS-TOTAL-PRINCIPAL TO WS-EDIT-AMOUNT
+           MOVE SPACES TO EXCEPTION-LINE
+           STRING 'TOTAL PRINCIPAL:    ' WS-EDIT-AMOUNT
+                  DELIMITED BY SIZE INTO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 1 LINE
+
+           MOVE WS-TOTAL-INTEREST TO WS-EDIT-AMOUNT
+           MOVE SPACES TO EXCEPTION-LINE
+           STRING 'TOTAL INTEREST:     ' WS-EDIT-AMOUNT
+                  DELIMITED BY SIZE INTO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 1 LINE.
+
+       9300-WRITE-LOAN-TYPE-SUMMARY.
+      *****************************************************************
+      * WRITE LOAN TYPE BREAKDOWN                                    *
+      *****************************************************************
+           MOVE SPACES TO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 2 LINES
+
+           MOVE '*** LOAN TYPE SUMMARY ***' TO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 1 LINE
+
+           MOVE SPACES TO EXCEPTION-LINE
+           MOVE WS-MORTGAGE-COUNT TO WS-LE-COUNT
+           STRING 'MORTGAGE LOANS:     ' WS-LE-COUNT
+                  DELIMITED BY SIZE INTO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 2 LINES
+
+           MOVE SPACES TO EXCEPTION-LINE
+           MOVE WS-AUTO-COUNT TO WS-LE-COUNT
+           STRING 'AUTO LOANS:         ' WS-LE-COUNT
+                  DELIMITED BY SIZE INTO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 1 LINE
+
+           MOVE SPACES TO EXCEPTION-LINE
+           MOVE WS-PERSONAL-COUNT TO WS-LE-COUNT
+           STRING 'PERSONAL LOANS:     ' WS-LE-COUNT
+                  DELIMITED BY SIZE INTO EXCEPTION-LINE
+           WRITE EXCEPTION-LINE AFTER ADVANCING 1 LINE.
+
+       9400-RECONCILE-TOTALS.
+      *****************************************************************
+      * RECONCILE AND VERIFY TOTALS                                  *
+      *****************************************************************
+           IF WS-PAYMENTS-READ =
+              (WS-PAYMENTS-PROCESSED + WS-PAYMENTS-REJECTED)
+               DISPLAY 'PAYMENT COUNTS RECONCILE SUCCESSFULLY'
+           ELSE
+               DISPLAY '*** WARNING: PAYMENT COUNT MISMATCH ***'
+               MOVE 'Y' TO WS-ERROR-OCCURRED
+           END-IF.
+
+       9100-LOG-EXCEPTION.
+      *****************************************************************
+      * LOG AN EXCEPTION MESSAGE TO THE EXCEPTION REPORT             *
+      *****************************************************************
+           MOVE SPACES TO EXCEPTION-LINE
+           STRING 'EXCEPTION: ' WS-ERROR-MESSAGE
+                  DELIMITED BY SIZE
+                  INTO EXCEPTION-LINE
+           END-STRING
+           WRITE EXCEPTION-LINE
+           MOVE 'Y' TO WS-ERROR-OCCURRED.
+
+       9900-FINALIZATION.
+      *****************************************************************
+      * CLOSE FILES AND FINAL CLEANUP                                *
+      *****************************************************************
+           DISPLAY 'CLOSING FILES...'
+
+           CLOSE LOAN-MASTER
+                 PAYMENT-INPUT
+                 PAYMENT-HISTORY
+                 ESCROW-MASTER
+                 INSURANCE-MASTER
+                 PROPERTY-TAX-MASTER
+                 RATE-ADJUSTMENT-TABLE
+                 DELINQUENCY-TRACKING
+                 CREDIT-BUREAU-REPORT
+                 TRANSACTION-LOG
+                 EXCEPTION-REPORT
+                 REGULATORY-REPORT
+                 AMORTIZATION-SCHEDULE
+                 PAYOFF-QUOTES
+                 FORECLOSURE-TRACKING
+
+           IF ERRORS-FOUND
+               DISPLAY '********************************************'
+               DISPLAY '* PROCESSING COMPLETED WITH ERRORS         *'
+               DISPLAY '********************************************'
+               MOVE 4 TO RETURN-CODE
+           ELSE
+               DISPLAY '********************************************'
+               DISPLAY '* PROCESSING COMPLETED SUCCESSFULLY        *'
+               DISPLAY '********************************************'
+               MOVE 0 TO RETURN-CODE
+           END-IF
+
+           DISPLAY 'TOTAL PAYMENTS PROCESSED: ' WS-PAYMENTS-PROCESSED
+           DISPLAY 'TOTAL AMOUNT PROCESSED: ' WS-TOTAL-PAYMENTS
+           DISPLAY 'LOANS UPDATED: ' WS-LOANS-UPDATED.
