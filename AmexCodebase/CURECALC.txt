@@ -1,0 +1,36 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. CURECALC.
+      *****************************************************************
+      * CURE AMOUNT CALCULATION UTILITY                              *
+      *****************************************************************
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-SCHEDULED-PAYMENT        PIC S9(9)V99 COMP-3.
+
+       LINKAGE SECTION.
+       01  LS-LOAN-NUMBER              PIC X(20).
+       01  LS-PAYMENTS-MISSED          PIC 9(3) COMP.
+       01  LS-CURE-AMOUNT              PIC S9(11)V99 COMP-3.
+       01  LS-LATE-FEES                PIC S9(9)V99 COMP-3.
+       01  LS-LEGAL-FEES               PIC S9(9)V99 COMP-3.
+       01  LS-CALCULATION-STATUS       PIC X.
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-LOAN-NUMBER
+                                LS-PAYMENTS-MISSED
+                                LS-CURE-AMOUNT
+                                LS-LATE-FEES
+                                LS-LEGAL-FEES
+                                LS-CALCULATION-STATUS
+                                LS-RETURN-CODE.
+       0000-MAIN.
+           MOVE 'Y' TO LS-CALCULATION-STATUS
+           MOVE ZERO TO LS-RETURN-CODE
+           MOVE 1500.00 TO WS-SCHEDULED-PAYMENT
+
+           COMPUTE LS-CURE-AMOUNT =
+               WS-SCHEDULED-PAYMENT * LS-PAYMENTS-MISSED
+           COMPUTE LS-LATE-FEES = LS-PAYMENTS-MISSED * 25.00
+           MOVE ZERO TO LS-LEGAL-FEES
+
+           GOBACK.
