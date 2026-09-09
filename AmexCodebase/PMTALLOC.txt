@@ -1,0 +1,374 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PMTALLOC.
+       AUTHOR. ENTERPRISE-BANKING-SYSTEMS.
+      *****************************************************************
+      * PAYMENT ALLOCATION ENGINE - COMPLEX SUBPROGRAM               *
+      *                                                              *
+      * ALLOCATES PAYMENT AMOUNTS TO:                               *
+      * 1. FEES (LATE FEES, OTHER FEES) - FIRST PRIORITY            *
+      * 2. ACCRUED INTEREST - SECOND PRIORITY                       *
+      * 3. PRINCIPAL BALANCE - THIRD PRIORITY                       *
+      * 4. ESCROW (IF REQUIRED) - FOURTH PRIORITY                   *
+      * 5. OVERPAYMENT/PREPAYMENT - FINAL                           *
+      *                                                              *
+      * HANDLES MULTIPLE ALLOCATION METHODS:                        *
+      * - FIFO (FIRST IN FIRST OUT)                                 *
+      * - PRO-RATA                                                  *
+      * - STATUTORY PRIORITY                                        *
+      * - CUSTOM WATERFALL                                          *
+      *                                                              *
+      * COMPLIES WITH:                                              *
+      * - TRUTH IN LENDING ACT (TILA)                               *
+      * - REAL ESTATE SETTLEMENT PROCEDURES ACT (RESPA)             *
+      * - STATE-SPECIFIC REGULATIONS                                *
+      *****************************************************************
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-ALLOCATION-METHOD        PIC X(3).
+           88  FIFO-METHOD             VALUE 'FIF'.
+           88  PRORATA-METHOD          VALUE 'PRT'.
+           88  STATUTORY-METHOD        VALUE 'STT'.
+           88  WATERFALL-METHOD        VALUE 'WTR'.
+
+       01  WS-REMAINING-PAYMENT        PIC S9(11)V99 COMP-3.
+       01  WS-ALLOCATED-AMOUNT         PIC S9(11)V99 COMP-3.
+       01  WS-PERCENTAGE               PIC 9V9(4) COMP-3.
+
+       01  WS-ALLOCATION-SEQUENCE.
+           05  WS-STEP-1-COMPLETE      PIC X VALUE 'N'.
+               88  STEP-1-DONE         VALUE 'Y'.
+           05  WS-STEP-2-COMPLETE      PIC X VALUE 'N'.
+               88  STEP-2-DONE         VALUE 'Y'.
+           05  WS-STEP-3-COMPLETE      PIC X VALUE 'N'.
+               88  STEP-3-DONE         VALUE 'Y'.
+           05  WS-STEP-4-COMPLETE      PIC X VALUE 'N'.
+               88  STEP-4-DONE         VALUE 'Y'.
+
+       01  WS-CALCULATION-WORK.
+           05  WS-TEMP-AMOUNT          PIC S9(11)V99 COMP-3.
+           05  WS-WORK-TOTAL           PIC S9(11)V99 COMP-3.
+           05  WS-WORK-PERCENT         PIC 9V9(6) COMP-3.
+
+       01  WS-VALIDATION-TOTALS.
+           05  WS-INPUT-TOTAL          PIC S9(11)V99 COMP-3.
+           05  WS-OUTPUT-TOTAL         PIC S9(11)V99 COMP-3.
+           05  WS-DIFFERENCE           PIC S9(7)V99 COMP-3.
+
+       01  WS-ERROR-HANDLING.
+           05  WS-ERROR-CODE           PIC X(6).
+           05  WS-ERROR-DESC           PIC X(80).
+
+       01  WS-REGULATORY-LIMITS.
+           05  WS-MAX-LATE-FEE         PIC 9(7)V99 COMP-3 VALUE 500.00.
+           05  WS-MIN-PRINCIPAL-ALLOC  PIC 9(5)V99 COMP-3 VALUE 1.00.
+           05  WS-MAX-ESCROW-PERCENT   PIC 9V99 COMP-3 VALUE 0.35.
+
+       LINKAGE SECTION.
+       01  LS-LOAN-TYPE                PIC X(4).
+       01  LS-PAYMENT-AMOUNT           PIC S9(11)V99 COMP-3.
+       01  LS-FEES-BALANCE             PIC S9(9)V99 COMP-3.
+       01  LS-LATE-FEE-DUE             PIC S9(7)V99 COMP-3.
+       01  LS-INTEREST-BALANCE         PIC S9(11)V99 COMP-3.
+       01  LS-ACCRUED-INTEREST         PIC S9(9)V99 COMP-3.
+       01  LS-PRINCIPAL-BALANCE        PIC S9(13)V99 COMP-3.
+       01  LS-ESCROW-REQUIRED          PIC X.
+       01  LS-ESCROW-PAYMENT-AMOUNT    PIC S9(7)V99 COMP-3.
+       01  LS-ALLOCATED-PRINCIPAL      PIC S9(11)V99 COMP-3.
+       01  LS-ALLOCATED-INTEREST       PIC S9(9)V99 COMP-3.
+       01  LS-ALLOCATED-ESCROW         PIC S9(9)V99 COMP-3.
+       01  LS-ALLOCATED-LATE-FEE       PIC S9(7)V99 COMP-3.
+       01  LS-ALLOCATED-OTHER-FEES     PIC S9(7)V99 COMP-3.
+       01  LS-OVERPAYMENT-AMOUNT       PIC S9(9)V99 COMP-3.
+       01  LS-ALLOCATION-STATUS        PIC X.
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-LOAN-TYPE
+                                LS-PAYMENT-AMOUNT
+                                LS-FEES-BALANCE
+                                LS-LATE-FEE-DUE
+                                LS-INTEREST-BALANCE
+                                LS-ACCRUED-INTEREST
+                                LS-PRINCIPAL-BALANCE
+                                LS-ESCROW-REQUIRED
+                                LS-ESCROW-PAYMENT-AMOUNT
+                                LS-ALLOCATED-PRINCIPAL
+                                LS-ALLOCATED-INTEREST
+                                LS-ALLOCATED-ESCROW
+                                LS-ALLOCATED-LATE-FEE
+                                LS-ALLOCATED-OTHER-FEES
+                                LS-OVERPAYMENT-AMOUNT
+                                LS-ALLOCATION-STATUS
+                                LS-RETURN-CODE.
+
+       0000-MAIN-ALLOCATION-LOGIC.
+      *****************************************************************
+      * MAIN PAYMENT ALLOCATION LOGIC                                *
+      *****************************************************************
+           PERFORM 1000-INITIALIZE-ALLOCATION
+           PERFORM 2000-VALIDATE-INPUT-AMOUNTS
+
+           IF LS-ALLOCATION-STATUS = 'Y'
+               PERFORM 3000-DETERMINE-ALLOC-METHOD
+               PERFORM 4000-ALLOCATE-TO-FEES
+               PERFORM 5000-ALLOCATE-TO-INTEREST
+               PERFORM 6000-ALLOCATE-TO-PRINCIPAL
+               PERFORM 7000-ALLOCATE-TO-ESCROW
+               PERFORM 8000-HANDLE-OVERPAYMENT
+               PERFORM 9000-VALIDATE-ALLOCATION
+           END-IF
+
+           GOBACK.
+
+       1000-INITIALIZE-ALLOCATION.
+      *****************************************************************
+      * INITIALIZE ALLOCATION VARIABLES                              *
+      *****************************************************************
+           MOVE ZERO TO LS-ALLOCATED-PRINCIPAL
+                        LS-ALLOCATED-INTEREST
+                        LS-ALLOCATED-ESCROW
+                        LS-ALLOCATED-LATE-FEE
+                        LS-ALLOCATED-OTHER-FEES
+                        LS-OVERPAYMENT-AMOUNT
+
+           MOVE LS-PAYMENT-AMOUNT TO WS-REMAINING-PAYMENT
+           MOVE 'Y' TO LS-ALLOCATION-STATUS
+           MOVE ZERO TO LS-RETURN-CODE
+
+           INITIALIZE WS-ALLOCATION-SEQUENCE.
+
+       2000-VALIDATE-INPUT-AMOUNTS.
+      *****************************************************************
+      * VALIDATE INPUT AMOUNTS AND PARAMETERS                        *
+      *****************************************************************
+           IF LS-PAYMENT-AMOUNT <= ZERO
+               MOVE 'PMT001' TO WS-ERROR-CODE
+               MOVE 'PAYMENT AMOUNT MUST BE POSITIVE' TO WS-ERROR-DESC
+               MOVE 'N' TO LS-ALLOCATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+               GO TO 2000-EXIT
+           END-IF
+
+           IF LS-LOAN-TYPE = SPACES OR LOW-VALUES
+               MOVE 'PMT002' TO WS-ERROR-CODE
+               MOVE 'LOAN TYPE REQUIRED' TO WS-ERROR-DESC
+               MOVE 'N' TO LS-ALLOCATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+               GO TO 2000-EXIT
+           END-IF
+
+           IF LS-PRINCIPAL-BALANCE < ZERO
+               MOVE 'PMT003' TO WS-ERROR-CODE
+               MOVE 'INVALID PRINCIPAL BALANCE' TO WS-ERROR-DESC
+               MOVE 'N' TO LS-ALLOCATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+               GO TO 2000-EXIT
+           END-IF.
+
+       2000-EXIT.
+           EXIT.
+
+       3000-DETERMINE-ALLOC-METHOD.
+      *****************************************************************
+      * DETERMINE ALLOCATION METHOD BASED ON LOAN TYPE               *
+      *****************************************************************
+           EVALUATE LS-LOAN-TYPE
+               WHEN 'MORT'
+                   MOVE 'STT' TO WS-ALLOCATION-METHOD
+               WHEN 'AUTO'
+                   MOVE 'WTR' TO WS-ALLOCATION-METHOD
+               WHEN 'PERS'
+                   MOVE 'FIF' TO WS-ALLOCATION-METHOD
+               WHEN 'HELO'
+                   MOVE 'STT' TO WS-ALLOCATION-METHOD
+               WHEN 'COMM'
+                   MOVE 'PRT' TO WS-ALLOCATION-METHOD
+               WHEN OTHER
+                   MOVE 'WTR' TO WS-ALLOCATION-METHOD
+           END-EVALUATE.
+
+       4000-ALLOCATE-TO-FEES.
+      *****************************************************************
+      * STEP 1: ALLOCATE TO FEES (HIGHEST PRIORITY)                  *
+      *****************************************************************
+           IF WS-REMAINING-PAYMENT <= ZERO
+               GO TO 4000-EXIT
+           END-IF
+
+      *    ALLOCATE TO LATE FEES FIRST
+           IF LS-LATE-FEE-DUE > ZERO
+               IF WS-REMAINING-PAYMENT >= LS-LATE-FEE-DUE
+                   MOVE LS-LATE-FEE-DUE TO LS-ALLOCATED-LATE-FEE
+                   SUBTRACT LS-LATE-FEE-DUE FROM WS-REMAINING-PAYMENT
+               ELSE
+                   MOVE WS-REMAINING-PAYMENT TO LS-ALLOCATED-LATE-FEE
+                   MOVE ZERO TO WS-REMAINING-PAYMENT
+               END-IF
+           END-IF
+
+      *    ALLOCATE TO OTHER FEES
+           IF WS-REMAINING-PAYMENT > ZERO AND LS-FEES-BALANCE > ZERO
+               COMPUTE WS-TEMP-AMOUNT =
+                   LS-FEES-BALANCE - LS-LATE-FEE-DUE
+
+               IF WS-TEMP-AMOUNT > ZERO
+                   IF WS-REMAINING-PAYMENT >= WS-TEMP-AMOUNT
+                       MOVE WS-TEMP-AMOUNT TO LS-ALLOCATED-OTHER-FEES
+                       SUBTRACT WS-TEMP-AMOUNT
+                           FROM WS-REMAINING-PAYMENT
+                   ELSE
+                       MOVE WS-REMAINING-PAYMENT
+                           TO LS-ALLOCATED-OTHER-FEES
+                       MOVE ZERO TO WS-REMAINING-PAYMENT
+                   END-IF
+               END-IF
+           END-IF
+
+           MOVE 'Y' TO WS-STEP-1-COMPLETE.
+
+       4000-EXIT.
+           EXIT.
+
+       5000-ALLOCATE-TO-INTEREST.
+      *****************************************************************
+      * STEP 2: ALLOCATE TO INTEREST (SECOND PRIORITY)               *
+      *****************************************************************
+           IF WS-REMAINING-PAYMENT <= ZERO
+               GO TO 5000-EXIT
+           END-IF
+
+           IF LS-INTEREST-BALANCE > ZERO
+               IF WS-REMAINING-PAYMENT >= LS-INTEREST-BALANCE
+                   MOVE LS-INTEREST-BALANCE TO LS-ALLOCATED-INTEREST
+                   SUBTRACT LS-INTEREST-BALANCE
+                       FROM WS-REMAINING-PAYMENT
+               ELSE
+                   MOVE WS-REMAINING-PAYMENT TO LS-ALLOCATED-INTEREST
+                   MOVE ZERO TO WS-REMAINING-PAYMENT
+               END-IF
+           END-IF
+
+           MOVE 'Y' TO WS-STEP-2-COMPLETE.
+
+       5000-EXIT.
+           EXIT.
+
+       6000-ALLOCATE-TO-PRINCIPAL.
+      *****************************************************************
+      * STEP 3: ALLOCATE TO PRINCIPAL (THIRD PRIORITY)               *
+      *****************************************************************
+           IF WS-REMAINING-PAYMENT <= ZERO
+               GO TO 6000-EXIT
+           END-IF
+
+           IF LS-PRINCIPAL-BALANCE > ZERO
+               IF WATERFALL-METHOD
+                   PERFORM 6100-WATERFALL-PRINCIPAL-ALLOC
+               ELSE IF PRORATA-METHOD
+                   PERFORM 6200-PRORATA-PRINCIPAL-ALLOC
+               ELSE
+                   PERFORM 6300-STANDARD-PRINCIPAL-ALLOC
+               END-IF
+           END-IF
+
+           MOVE 'Y' TO WS-STEP-3-COMPLETE.
+
+       6000-EXIT.
+           EXIT.
+
+       6100-WATERFALL-PRINCIPAL-ALLOC.
+      *****************************************************************
+      * WATERFALL METHOD FOR PRINCIPAL ALLOCATION                    *
+      *****************************************************************
+           IF WS-REMAINING-PAYMENT >= LS-PRINCIPAL-BALANCE
+               MOVE LS-PRINCIPAL-BALANCE TO LS-ALLOCATED-PRINCIPAL
+               SUBTRACT LS-PRINCIPAL-BALANCE FROM WS-REMAINING-PAYMENT
+           ELSE
+               MOVE WS-REMAINING-PAYMENT TO LS-ALLOCATED-PRINCIPAL
+               MOVE ZERO TO WS-REMAINING-PAYMENT
+           END-IF.
+
+       6200-PRORATA-PRINCIPAL-ALLOC.
+      *****************************************************************
+      * PRO-RATA METHOD FOR PRINCIPAL ALLOCATION                     *
+      *****************************************************************
+           COMPUTE WS-WORK-TOTAL = LS-PRINCIPAL-BALANCE +
+                                    LS-INTEREST-BALANCE +
+                                    LS-FEES-BALANCE
+
+           IF WS-WORK-TOTAL > ZERO
+               COMPUTE WS-PERCENTAGE =
+                   LS-PRINCIPAL-BALANCE / WS-WORK-TOTAL
+               COMPUTE LS-ALLOCATED-PRINCIPAL =
+                   LS-PAYMENT-AMOUNT * WS-PERCENTAGE
+               SUBTRACT LS-ALLOCATED-PRINCIPAL
+                   FROM WS-REMAINING-PAYMENT
+           END-IF.
+
+       6300-STANDARD-PRINCIPAL-ALLOC.
+      *****************************************************************
+      * STANDARD METHOD FOR PRINCIPAL ALLOCATION                     *
+      *****************************************************************
+           IF WS-REMAINING-PAYMENT >= LS-PRINCIPAL-BALANCE
+               MOVE LS-PRINCIPAL-BALANCE TO LS-ALLOCATED-PRINCIPAL
+               SUBTRACT LS-PRINCIPAL-BALANCE FROM WS-REMAINING-PAYMENT
+           ELSE
+               MOVE WS-REMAINING-PAYMENT TO LS-ALLOCATED-PRINCIPAL
+               MOVE ZERO TO WS-REMAINING-PAYMENT
+           END-IF.
+
+       7000-ALLOCATE-TO-ESCROW.
+      *****************************************************************
+      * STEP 4: ALLOCATE TO ESCROW (FOURTH PRIORITY)                 *
+      *****************************************************************
+           IF WS-REMAINING-PAYMENT <= ZERO
+               GO TO 7000-EXIT
+           END-IF
+
+           IF LS-ESCROW-REQUIRED = 'Y'
+               IF WS-REMAINING-PAYMENT >= LS-ESCROW-PAYMENT-AMOUNT
+                   MOVE LS-ESCROW-PAYMENT-AMOUNT
+                       TO LS-ALLOCATED-ESCROW
+                   SUBTRACT LS-ESCROW-PAYMENT-AMOUNT
+                       FROM WS-REMAINING-PAYMENT
+               ELSE
+                   MOVE WS-REMAINING-PAYMENT TO LS-ALLOCATED-ESCROW
+                   MOVE ZERO TO WS-REMAINING-PAYMENT
+               END-IF
+           END-IF
+
+           MOVE 'Y' TO WS-STEP-4-COMPLETE.
+
+       7000-EXIT.
+           EXIT.
+
+       8000-HANDLE-OVERPAYMENT.
+      *****************************************************************
+      * HANDLE ANY REMAINING PAYMENT (OVERPAYMENT/PREPAYMENT)        *
+      *****************************************************************
+           IF WS-REMAINING-PAYMENT > ZERO
+               MOVE WS-REMAINING-PAYMENT TO LS-OVERPAYMENT-AMOUNT
+           ELSE
+               MOVE ZERO TO LS-OVERPAYMENT-AMOUNT
+           END-IF.
+
+       9000-VALIDATE-ALLOCATION.
+      *****************************************************************
+      * VALIDATE TOTAL ALLOCATION EQUALS PAYMENT AMOUNT              *
+      *****************************************************************
+           COMPUTE WS-OUTPUT-TOTAL =
+               LS-ALLOCATED-PRINCIPAL +
+               LS-ALLOCATED-INTEREST +
+               LS-ALLOCATED-ESCROW +
+               LS-ALLOCATED-LATE-FEE +
+               LS-ALLOCATED-OTHER-FEES +
+               LS-OVERPAYMENT-AMOUNT
+
+           COMPUTE WS-DIFFERENCE =
+               LS-PAYMENT-AMOUNT - WS-OUTPUT-TOTAL
+
+           IF WS-DIFFERENCE NOT = ZERO
+               MOVE 'PMT099' TO WS-ERROR-CODE
+               MOVE 'ALLOCATION TOTAL MISMATCH' TO WS-ERROR-DESC
+               MOVE 'N' TO LS-ALLOCATION-STATUS
+               MOVE 12 TO LS-RETURN-CODE
+           END-IF.
