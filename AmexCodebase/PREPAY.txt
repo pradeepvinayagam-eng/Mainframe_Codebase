@@ -1,0 +1,35 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PREPAY.
+      *****************************************************************
+      * PREPAYMENT PROCESSING SUBPROGRAM                             *
+      *****************************************************************
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-PENALTY-RATE             PIC 9V9(4) COMP-3 VALUE 0.02.
+
+       LINKAGE SECTION.
+       01  LS-LOAN-TYPE                PIC X(4).
+       01  LS-PREPAYMENT-ALLOWED       PIC X.
+       01  LS-PREPAYMENT-AMOUNT        PIC S9(9)V99 COMP-3.
+       01  LS-PRINCIPAL-BALANCE        PIC S9(13)V99 COMP-3.
+       01  LS-PENALTY-AMOUNT           PIC S9(9)V99 COMP-3.
+       01  LS-CALCULATION-STATUS       PIC X.
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-LOAN-TYPE
+                                LS-PREPAYMENT-ALLOWED
+                                LS-PREPAYMENT-AMOUNT
+                                LS-PRINCIPAL-BALANCE
+                                LS-PENALTY-AMOUNT
+                                LS-CALCULATION-STATUS
+                                LS-RETURN-CODE.
+       0000-MAIN.
+           MOVE 'Y' TO LS-CALCULATION-STATUS
+           MOVE ZERO TO LS-PENALTY-AMOUNT
+
+           IF LS-PREPAYMENT-ALLOWED = 'N'
+               COMPUTE LS-PENALTY-AMOUNT ROUNDED =
+                   LS-PREPAYMENT-AMOUNT * WS-PENALTY-RATE
+           END-IF
+
+           GOBACK.
