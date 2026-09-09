@@ -1,0 +1,23 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. ESCROW.
+      *****************************************************************
+      * ESCROW PROCESSING SUBPROGRAM                                 *
+      *****************************************************************
+       DATA DIVISION.
+       LINKAGE SECTION.
+       01  LS-LOAN-NUMBER              PIC X(20).
+       01  LS-ESCROW-PAYMENT           PIC S9(9)V99 COMP-3.
+       01  LS-ESCROW-REC.
+           COPY ESCRWREC.
+       01  LS-CALCULATION-STATUS       PIC X.
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-LOAN-NUMBER
+                                LS-ESCROW-PAYMENT
+                                LS-ESCROW-REC
+                                LS-CALCULATION-STATUS
+                                LS-RETURN-CODE.
+       0000-MAIN.
+           MOVE 'Y' TO LS-CALCULATION-STATUS
+           ADD LS-ESCROW-PAYMENT TO EM-CURRENT-BALANCE
+           GOBACK.
