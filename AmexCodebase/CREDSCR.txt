@@ -1,0 +1,22 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. CREDSCR.
+      *****************************************************************
+      * CREDIT SCORE UPDATE SUBPROGRAM                               *
+      *****************************************************************
+       DATA DIVISION.
+       LINKAGE SECTION.
+       01  LS-LOAN-NUMBER              PIC X(20).
+       01  LS-PAYMENT-STATUS           PIC X.
+       01  LS-DAYS-LATE                PIC 9(5) COMP.
+       01  LS-UPDATE-STATUS            PIC X.
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-LOAN-NUMBER
+                                LS-PAYMENT-STATUS
+                                LS-DAYS-LATE
+                                LS-UPDATE-STATUS
+                                LS-RETURN-CODE.
+       0000-MAIN.
+           MOVE 'Y' TO LS-UPDATE-STATUS
+           MOVE ZERO TO LS-RETURN-CODE
+           GOBACK.
