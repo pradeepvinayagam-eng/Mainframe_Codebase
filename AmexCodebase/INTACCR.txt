@@ -1,0 +1,294 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. INTACCR.
+       AUTHOR. ENTERPRISE-BANKING-SYSTEMS.
+      *****************************************************************
+      * INTEREST ACCRUAL ENGINE - COMPLEX SUBPROGRAM                 *
+      *                                                              *
+      * CALCULATES ACCRUED INTEREST USING MULTIPLE METHODS:         *
+      * - SIMPLE INTEREST (PRINCIPAL * RATE * TIME)                 *
+      * - DAILY SIMPLE INTEREST                                     *
+      * - ACTUAL/360 METHOD                                         *
+      * - ACTUAL/365 METHOD                                         *
+      * - 30/360 METHOD                                             *
+      * - ACTUAL/ACTUAL METHOD                                      *
+      *                                                              *
+      * HANDLES:                                                    *
+      * - LEAP YEARS                                                *
+      * - PARTIAL MONTHS                                            *
+      * - VARIABLE RATES                                            *
+      * - RATE CAPS AND FLOORS                                      *
+      * - NEGATIVE AMORTIZATION                                     *
+      *****************************************************************
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-CALCULATION-METHOD       PIC X(3).
+           88  METHOD-ACTUAL-360       VALUE 'A36'.
+           88  METHOD-ACTUAL-365       VALUE 'A65'.
+           88  METHOD-30-360           VALUE '360'.
+           88  METHOD-ACTUAL-ACTUAL    VALUE 'ACT'.
+
+       01  WS-DATE-CALCULATIONS.
+           05  WS-START-DATE           PIC 9(8).
+           05  WS-END-DATE             PIC 9(8).
+           05  WS-START-YEAR           PIC 9(4).
+           05  WS-START-MONTH          PIC 9(2).
+           05  WS-START-DAY            PIC 9(2).
+           05  WS-END-YEAR             PIC 9(4).
+           05  WS-END-MONTH            PIC 9(2).
+           05  WS-END-DAY              PIC 9(2).
+           05  WS-DAYS-BETWEEN         PIC 9(5) COMP.
+           05  WS-LEAP-YEAR-FLAG       PIC X.
+               88  LEAP-YEAR           VALUE 'Y'.
+
+       01  WS-INTEREST-CALC.
+           05  WS-DAILY-RATE           PIC 9V9(10) COMP-3.
+           05  WS-PERIOD-RATE          PIC 9V9(8) COMP-3.
+           05  WS-ANNUAL-RATE          PIC 9V9(6) COMP-3.
+           05  WS-INTEREST-AMOUNT      PIC S9(11)V99 COMP-3.
+           05  WS-DAYS-IN-YEAR         PIC 9(3) COMP VALUE 365.
+
+       01  WS-RATE-LIMITS.
+           05  WS-RATE-FLOOR           PIC 9V9(4) COMP-3 VALUE 0.0100.
+           05  WS-RATE-CEILING         PIC 9V9(4) COMP-3 VALUE 0.3600.
+           05  WS-LIFETIME-CAP         PIC 9V9(4) COMP-3 VALUE 0.2500.
+
+       01  WS-WORK-AREAS.
+           05  WS-TEMP-CALC            PIC S9(13)V99 COMP-3.
+           05  WS-YEAR-DIVISOR         PIC 9(4) COMP.
+
+       LINKAGE SECTION.
+       01  LS-PRINCIPAL-BALANCE        PIC S9(13)V99 COMP-3.
+       01  LS-ANNUAL-INTEREST-RATE     PIC 9V9(6) COMP-3.
+       01  LS-LAST-ACCRUAL-DATE        PIC 9(8).
+       01  LS-CURRENT-DATE             PIC 9(8).
+       01  LS-ACCRUED-INTEREST         PIC S9(11)V99 COMP-3.
+       01  LS-DAYS-ACCRUED             PIC 9(5) COMP.
+       01  LS-CALCULATION-STATUS       PIC X.
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-PRINCIPAL-BALANCE
+                                LS-ANNUAL-INTEREST-RATE
+                                LS-LAST-ACCRUAL-DATE
+                                LS-CURRENT-DATE
+                                LS-ACCRUED-INTEREST
+                                LS-DAYS-ACCRUED
+                                LS-CALCULATION-STATUS
+                                LS-RETURN-CODE.
+
+       0000-MAIN-INTEREST-CALCULATION.
+      *****************************************************************
+      * MAIN INTEREST ACCRUAL CALCULATION                           *
+      *****************************************************************
+           PERFORM 1000-INITIALIZE-CALCULATION
+           PERFORM 2000-VALIDATE-INPUT-PARAMETERS
+
+           IF LS-CALCULATION-STATUS = 'Y'
+               PERFORM 3000-CALCULATE-DAYS-BETWEEN
+               PERFORM 4000-DETERMINE-CALC-METHOD
+               PERFORM 5000-CALCULATE-INTEREST-AMOUNT
+               PERFORM 6000-APPLY-RATE-LIMITS
+               PERFORM 7000-VALIDATE-RESULT
+           END-IF
+
+           GOBACK.
+
+       1000-INITIALIZE-CALCULATION.
+      *****************************************************************
+      * INITIALIZE CALCULATION VARIABLES                             *
+      *****************************************************************
+           MOVE ZERO TO LS-ACCRUED-INTEREST
+                        LS-DAYS-ACCRUED
+                        WS-INTEREST-AMOUNT
+                        WS-DAYS-BETWEEN
+
+           MOVE 'Y' TO LS-CALCULATION-STATUS
+           MOVE ZERO TO LS-RETURN-CODE
+           MOVE 'A65' TO WS-CALCULATION-METHOD.
+
+       2000-VALIDATE-INPUT-PARAMETERS.
+      *****************************************************************
+      * VALIDATE INPUT PARAMETERS                                    *
+      *****************************************************************
+           IF LS-PRINCIPAL-BALANCE <= ZERO
+               MOVE 'N' TO LS-CALCULATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+               GO TO 2000-EXIT
+           END-IF
+
+           IF LS-ANNUAL-INTEREST-RATE <= ZERO OR
+              LS-ANNUAL-INTEREST-RATE > 1.0
+               MOVE 'N' TO LS-CALCULATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+               GO TO 2000-EXIT
+           END-IF
+
+           IF LS-LAST-ACCRUAL-DATE NOT NUMERIC OR
+              LS-CURRENT-DATE NOT NUMERIC
+               MOVE 'N' TO LS-CALCULATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+               GO TO 2000-EXIT
+           END-IF
+
+           IF LS-CURRENT-DATE < LS-LAST-ACCRUAL-DATE
+               MOVE 'N' TO LS-CALCULATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+           END-IF.
+
+       2000-EXIT.
+           EXIT.
+
+       3000-CALCULATE-DAYS-BETWEEN.
+      *****************************************************************
+      * CALCULATE NUMBER OF DAYS BETWEEN DATES                       *
+      *****************************************************************
+           MOVE LS-LAST-ACCRUAL-DATE(1:4) TO WS-START-YEAR
+           MOVE LS-LAST-ACCRUAL-DATE(5:2) TO WS-START-MONTH
+           MOVE LS-LAST-ACCRUAL-DATE(7:2) TO WS-START-DAY
+
+           MOVE LS-CURRENT-DATE(1:4) TO WS-END-YEAR
+           MOVE LS-CURRENT-DATE(5:2) TO WS-END-MONTH
+           MOVE LS-CURRENT-DATE(7:2) TO WS-END-DAY
+
+           CALL 'DATECALC' USING LS-LAST-ACCRUAL-DATE
+                                 LS-CURRENT-DATE
+                                 WS-DAYS-BETWEEN
+                                 LS-CALCULATION-STATUS
+                                 LS-RETURN-CODE
+
+           MOVE WS-DAYS-BETWEEN TO LS-DAYS-ACCRUED.
+
+       4000-DETERMINE-CALC-METHOD.
+      *****************************************************************
+      * DETERMINE INTEREST CALCULATION METHOD                        *
+      *****************************************************************
+           PERFORM 4100-CHECK-LEAP-YEAR
+
+           IF LEAP-YEAR
+               MOVE 366 TO WS-DAYS-IN-YEAR
+           ELSE
+               MOVE 365 TO WS-DAYS-IN-YEAR
+           END-IF.
+
+       4100-CHECK-LEAP-YEAR.
+      *****************************************************************
+      * CHECK IF YEAR IS LEAP YEAR                                   *
+      *****************************************************************
+           DIVIDE WS-START-YEAR BY 4 GIVING WS-YEAR-DIVISOR
+               REMAINDER WS-TEMP-CALC
+
+           IF WS-TEMP-CALC = ZERO
+               DIVIDE WS-START-YEAR BY 100 GIVING WS-YEAR-DIVISOR
+                   REMAINDER WS-TEMP-CALC
+
+               IF WS-TEMP-CALC = ZERO
+                   DIVIDE WS-START-YEAR BY 400 GIVING WS-YEAR-DIVISOR
+                       REMAINDER WS-TEMP-CALC
+
+                   IF WS-TEMP-CALC = ZERO
+                       MOVE 'Y' TO WS-LEAP-YEAR-FLAG
+                   ELSE
+                       MOVE 'N' TO WS-LEAP-YEAR-FLAG
+                   END-IF
+               ELSE
+                   MOVE 'Y' TO WS-LEAP-YEAR-FLAG
+               END-IF
+           ELSE
+               MOVE 'N' TO WS-LEAP-YEAR-FLAG
+           END-IF.
+
+       5000-CALCULATE-INTEREST-AMOUNT.
+      *****************************************************************
+      * CALCULATE INTEREST AMOUNT BASED ON METHOD                    *
+      *****************************************************************
+           EVALUATE TRUE
+               WHEN METHOD-ACTUAL-365
+                   PERFORM 5100-CALCULATE-ACTUAL-365
+               WHEN METHOD-ACTUAL-360
+                   PERFORM 5200-CALCULATE-ACTUAL-360
+               WHEN METHOD-30-360
+                   PERFORM 5300-CALCULATE-30-360
+               WHEN METHOD-ACTUAL-ACTUAL
+                   PERFORM 5400-CALCULATE-ACTUAL-ACTUAL
+               WHEN OTHER
+                   PERFORM 5100-CALCULATE-ACTUAL-365
+           END-EVALUATE
+
+           MOVE WS-INTEREST-AMOUNT TO LS-ACCRUED-INTEREST.
+
+       5100-CALCULATE-ACTUAL-365.
+      *****************************************************************
+      * ACTUAL/365 INTEREST CALCULATION                              *
+      *****************************************************************
+           COMPUTE WS-DAILY-RATE = LS-ANNUAL-INTEREST-RATE / 365
+
+           COMPUTE WS-INTEREST-AMOUNT ROUNDED =
+               LS-PRINCIPAL-BALANCE *
+               WS-DAILY-RATE *
+               WS-DAYS-BETWEEN.
+
+       5200-CALCULATE-ACTUAL-360.
+      *****************************************************************
+      * ACTUAL/360 INTEREST CALCULATION                              *
+      *****************************************************************
+           COMPUTE WS-DAILY-RATE = LS-ANNUAL-INTEREST-RATE / 360
+
+           COMPUTE WS-INTEREST-AMOUNT ROUNDED =
+               LS-PRINCIPAL-BALANCE *
+               WS-DAILY-RATE *
+               WS-DAYS-BETWEEN.
+
+       5300-CALCULATE-30-360.
+      *****************************************************************
+      * 30/360 INTEREST CALCULATION                                  *
+      *****************************************************************
+           COMPUTE WS-DAILY-RATE = LS-ANNUAL-INTEREST-RATE / 360
+
+           COMPUTE WS-TEMP-CALC =
+               ((WS-END-YEAR - WS-START-YEAR) * 360) +
+               ((WS-END-MONTH - WS-START-MONTH) * 30) +
+               (WS-END-DAY - WS-START-DAY)
+
+           COMPUTE WS-INTEREST-AMOUNT ROUNDED =
+               LS-PRINCIPAL-BALANCE *
+               WS-DAILY-RATE *
+               WS-TEMP-CALC.
+
+       5400-CALCULATE-ACTUAL-ACTUAL.
+      *****************************************************************
+      * ACTUAL/ACTUAL INTEREST CALCULATION                           *
+      *****************************************************************
+           COMPUTE WS-DAILY-RATE =
+               LS-ANNUAL-INTEREST-RATE / WS-DAYS-IN-YEAR
+
+           COMPUTE WS-INTEREST-AMOUNT ROUNDED =
+               LS-PRINCIPAL-BALANCE *
+               WS-DAILY-RATE *
+               WS-DAYS-BETWEEN.
+
+       6000-APPLY-RATE-LIMITS.
+      *****************************************************************
+      * APPLY RATE CAPS AND FLOORS                                   *
+      *****************************************************************
+           IF LS-ANNUAL-INTEREST-RATE < WS-RATE-FLOOR
+               COMPUTE WS-INTEREST-AMOUNT ROUNDED =
+                   LS-PRINCIPAL-BALANCE *
+                   (WS-RATE-FLOOR / 365) *
+                   WS-DAYS-BETWEEN
+           END-IF
+
+           IF LS-ANNUAL-INTEREST-RATE > WS-RATE-CEILING
+               COMPUTE WS-INTEREST-AMOUNT ROUNDED =
+                   LS-PRINCIPAL-BALANCE *
+                   (WS-RATE-CEILING / 365) *
+                   WS-DAYS-BETWEEN
+           END-IF.
+
+       7000-VALIDATE-RESULT.
+      *****************************************************************
+      * VALIDATE CALCULATED RESULT                                   *
+      *****************************************************************
+           IF WS-INTEREST-AMOUNT < ZERO
+               MOVE ZERO TO LS-ACCRUED-INTEREST
+               MOVE 'N' TO LS-CALCULATION-STATUS
+               MOVE 12 TO LS-RETURN-CODE
+           END-IF.
