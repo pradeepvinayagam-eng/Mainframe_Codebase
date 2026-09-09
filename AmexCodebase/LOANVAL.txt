@@ -1,0 +1,60 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. LOANVAL.
+       AUTHOR. ENTERPRISE-BANKING-SYSTEMS.
+      *****************************************************************
+      * LOAN VALIDATION SUBPROGRAM                                   *
+      * VALIDATES PAYMENT INPUT RECORDS                              *
+      *****************************************************************
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-VALIDATION-CHECKS.
+           05  WS-LOAN-NUM-VALID       PIC X VALUE 'Y'.
+           05  WS-AMOUNT-VALID         PIC X VALUE 'Y'.
+           05  WS-DATE-VALID           PIC X VALUE 'Y'.
+
+       LINKAGE SECTION.
+       01  LS-PAYMENT-REC.
+           COPY PMTINPUT.
+       01  LS-VALIDATION-STATUS        PIC X.
+       01  LS-ERROR-MESSAGE            PIC X(100).
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-PAYMENT-REC
+                                LS-VALIDATION-STATUS
+                                LS-ERROR-MESSAGE
+                                LS-RETURN-CODE.
+       0000-MAIN-VALIDATION.
+           MOVE 'Y' TO LS-VALIDATION-STATUS
+           MOVE SPACES TO LS-ERROR-MESSAGE
+           MOVE ZERO TO LS-RETURN-CODE
+
+           PERFORM 1000-VALIDATE-LOAN-NUMBER
+           PERFORM 2000-VALIDATE-AMOUNT
+           PERFORM 3000-VALIDATE-DATE
+
+           IF WS-LOAN-NUM-VALID = 'N' OR
+              WS-AMOUNT-VALID = 'N' OR
+              WS-DATE-VALID = 'N'
+               MOVE 'N' TO LS-VALIDATION-STATUS
+               MOVE 8 TO LS-RETURN-CODE
+           END-IF
+
+           GOBACK.
+
+       1000-VALIDATE-LOAN-NUMBER.
+           IF PI-LOAN-NUMBER = SPACES OR LOW-VALUES
+               MOVE 'N' TO WS-LOAN-NUM-VALID
+               MOVE 'INVALID LOAN NUMBER' TO LS-ERROR-MESSAGE
+           END-IF.
+
+       2000-VALIDATE-AMOUNT.
+           IF PI-PAYMENT-AMOUNT NOT > ZERO
+               MOVE 'N' TO WS-AMOUNT-VALID
+               MOVE 'INVALID PAYMENT AMOUNT' TO LS-ERROR-MESSAGE
+           END-IF.
+
+       3000-VALIDATE-DATE.
+           IF PI-PAYMENT-DATE NOT NUMERIC
+               MOVE 'N' TO WS-DATE-VALID
+               MOVE 'INVALID PAYMENT DATE' TO LS-ERROR-MESSAGE
+           END-IF.
