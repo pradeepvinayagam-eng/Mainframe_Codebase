@@ -1,0 +1,26 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. RATEADJ.
+      *****************************************************************
+      * RATE ADJUSTMENT SUBPROGRAM                                   *
+      *****************************************************************
+       DATA DIVISION.
+       LINKAGE SECTION.
+       01  LS-LOAN-NUMBER              PIC X(20).
+       01  LS-CURRENT-RATE             PIC 9V9(6) COMP-3.
+       01  LS-INDEX-VALUE              PIC 9V9(6) COMP-3.
+       01  LS-MARGIN                   PIC 9V9(4) COMP-3.
+       01  LS-NEW-RATE                 PIC 9V9(6) COMP-3.
+       01  LS-CALCULATION-STATUS       PIC X.
+       01  LS-RETURN-CODE              PIC S9(4) COMP.
+
+       PROCEDURE DIVISION USING LS-LOAN-NUMBER
+                                LS-CURRENT-RATE
+                                LS-INDEX-VALUE
+                                LS-MARGIN
+                                LS-NEW-RATE
+                                LS-CALCULATION-STATUS
+                                LS-RETURN-CODE.
+       0000-MAIN.
+           MOVE 'Y' TO LS-CALCULATION-STATUS
+           COMPUTE LS-NEW-RATE = LS-INDEX-VALUE + LS-MARGIN
+           GOBACK.
