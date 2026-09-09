@@ -1,0 +1,32 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. DATEADD.
+      *****************************************************************
+      * DATE ADD UTILITY - ADD DAYS TO DATE                          *
+      *****************************************************************
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-DATE-INTEGER             PIC 9(7) COMP.
+       01  WS-NEW-INTEGER              PIC 9(7) COMP.
+
+       LINKAGE SECTION.
+       01  LS-INPUT-DATE               PIC 9(8).
+       01  LS-DAYS-TO-ADD              PIC 9(5) COMP.
+       01  LS-OUTPUT-DATE              PIC 9(8).
+       01  LS-CALCULATION-STATUS       PIC X.
+
+       PROCEDURE DIVISION USING LS-INPUT-DATE
+                                LS-DAYS-TO-ADD
+                                LS-OUTPUT-DATE
+                                LS-CALCULATION-STATUS.
+       0000-MAIN.
+           MOVE 'Y' TO LS-CALCULATION-STATUS
+
+           COMPUTE WS-DATE-INTEGER =
+                        FUNCTION INTEGER-OF-DATE(LS-INPUT-DATE)
+
+           COMPUTE WS-NEW-INTEGER = WS-DATE-INTEGER + LS-DAYS-TO-ADD
+
+           COMPUTE LS-OUTPUT-DATE =
+                        FUNCTION DATE-OF-INTEGER(WS-NEW-INTEGER)
+
+           GOBACK.
